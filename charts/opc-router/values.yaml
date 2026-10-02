@@ -198,6 +198,25 @@ resources: {}
   #   cpu: 100m
   #   memory: 128Mi
 
+# Resource requests and limits of the helper containers: the project clone, the project
+# auto-update with its kubectl proxy, and the log folder preparation of the embedded database.
+# Clusters that reject containers without limits need them set here as well.
+helperResources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 50m
+  #   memory: 64Mi
+
+# The connection test run by "helm test".
+tests:
+  image:
+    repository: busybox
+    tag: "1.37"
+    pullPolicy: IfNotPresent
+  resources: {}
+
 nodeSelector: {}
 
 tolerations: []
@@ -228,21 +247,21 @@ project:
   projectPath: 
   # Path to the projects configuration file. Optional. Not providing it results in no configuration file being loaded.
   configPath: 
-  # Settings for the used git image
+  # Settings for the used git image (needs a shell and git)
   gitImage:
     repository: alpine/git
     pullPolicy: IfNotPresent
-    tag: latest
+    tag: v2.47.2
   autoUpdate:
     # If false, the project will be automatically updated when it changes in the repository. Experimental.
     disable: true
     # Interval in seconds the git repository gets fetched to check for updates
     interval: 300
-    # Settings for the used kubectl image
+    # Settings for the used kubectl image. Its entrypoint must be kubectl; the chart passes "proxy".
     kubectlImage:
-      repository: bitnami/kubectl
+      repository: registry.k8s.io/kubectl
       pullPolicy: IfNotPresent
-      tag: latest
+      tag: v1.33.0
   auth:
     # An existing secret containing the ssh-key under the key 'ssh-privatekey'. Optional.
     # Must be in the same namespace as this application. Takes priority over ssh_key.

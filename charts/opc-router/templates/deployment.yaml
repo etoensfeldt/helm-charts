@@ -147,8 +147,12 @@ spec:
         - name: kubernetes-proxy
           image: "{{ .Values.project.autoUpdate.kubectlImage.repository }}:{{ .Values.project.autoUpdate.kubectlImage.tag }}"
           imagePullPolicy: {{ .Values.project.autoUpdate.kubectlImage.pullPolicy }}
-          # Script for setting ssh credentials and cloning the repository onto the volume
-          command: ['sh', '-c', "kubectl proxy;"]
+          # Gives the git-ops container access to the Kubernetes API on localhost:8001
+          args: ["proxy"]
+          {{- with .Values.helperResources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
         - name: git-ops
           image: "{{ .Values.project.gitImage.repository }}:{{ .Values.project.gitImage.tag }}"
           imagePullPolicy: {{ .Values.project.gitImage.pullPolicy }}
@@ -157,6 +161,10 @@ spec:
           args:
           - >-
             {{- include "project.gitops" $ | indent 12}}
+          {{- with .Values.helperResources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           # Volume mount for the project and configuration file
           volumeMounts:
           - mountPath: /data/project
@@ -177,6 +185,10 @@ spec:
         args:
           - >-
           {{- include "project.clone" $ | indent 10}}
+        {{- with .Values.helperResources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
         # Volume mount for the project and configuration file
         volumeMounts:
         - mountPath: /data/project
