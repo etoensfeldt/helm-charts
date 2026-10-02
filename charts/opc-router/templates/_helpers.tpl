@@ -110,6 +110,18 @@ claim holds the embedded database when the router runs without a separate MongoD
 {{- end }}
 
 {{/*
+HTTP request of a probe on one of the runtime's health routes, called with (list $ "<path>"). The
+routes answer without login; with HTTPS, port 8080 only redirects, so the probe follows the web port.
+*/}}
+{{- define "opc-router.healthGet" -}}
+{{- $root := index . 0 -}}
+httpGet:
+  path: {{ index . 1 }}
+  port: web-management
+  scheme: {{ if $root.Values.webManagement.https.disable }}HTTP{{ else }}HTTPS{{ end }}
+{{- end }}
+
+{{/*
 Selector labels
 */}}
 {{- define "opc-router.selectorLabels" -}}

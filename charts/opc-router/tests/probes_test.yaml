@@ -1,0 +1,123 @@
+suite: health probes
+templates:
+  - templates/deployment.yaml
+  - templates/services/service.yaml
+tests:
+  - it: has no probes by default and leaves the service as it was
+    asserts:
+      - template: templates/deployment.yaml
+        notExists:
+          path: spec.template.spec.containers[0].startupProbe
+      - template: templates/deployment.yaml
+        notExists:
+          path: spec.template.spec.containers[0].readinessProbe
+      - template: templates/deployment.yaml
+        notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+      - template: templates/services/service.yaml
+        notExists:
+          path: spec.publishNotReadyAddresses
+
+  - it: asks the runtime's health routes on the web port
+    set:
+      probes:
+        enabled: true
+    asserts:
+      - template: templates/deployment.yaml
+        equal:
+          path: spec.template.spec.containers[0].startupProbe
+          value:
+            httpGet:
+              path: /health/runtime/live
+              port: web-management
+              scheme: HTTP
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
+      - template: templates/deployment.yaml
+        equal:
+          path: spec.template.spec.containers[0].readinessProbe
+          value:
+            httpGet:
+              path: /health/runtime/ready
+              port: web-management
+              scheme: HTTP
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      # Liveness never on the readiness route: a runtime that is not ready must not be restarted.
+      - template: templates/deployment.yaml
+        equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /health/runtime/live
+      - template: templates/services/service.yaml
+        equal:
+          path: spec.publishNotReadyAddresses
+          value: true
+
+  - it: probes over HTTPS when the web management serves HTTPS
+    set:
+      probes:
+        enabled: true
+      webManagement:
+        https:
+          disable: false
+          existingTlsSecret: router-tls
+    asserts:
+      - template: templates/deployment.yaml
+        equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.scheme
+          value: HTTPS
+      - template: templates/deployment.yaml
+        equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.scheme
+          value: HTTPS
+      - template: templates/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            containerPort: 8443
+            protocol: TCP
+            name: web-management
+
+  - it: uses configured timings
+    set:
+      probes:
+        enabled: true
+        startupProbe:
+          failureThreshold: 120
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.failureThreshold
+          value: 120
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.periodSeconds
+          value: 10
+
+  - it: falls back to the default timings when an upgrade reused older values
+    set:
+      probes:
+        enabled: true
+        startupProbe: null
+        readinessProbe: null
+        livenessProbe: null
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.failureThreshold
+          value: 60
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.periodSeconds
+          value: 30
+
+  - it: can hide a pod that is not ready from the service
+    set:
+      probes:
+        enabled: true
+      service:
+        publishNotReadyAddresses: false
+    template: templates/services/service.yaml
+    asserts:
+      - notExists:
+          path: spec.publishNotReadyAddresses

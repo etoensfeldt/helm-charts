@@ -63,6 +63,26 @@ spec:
               containerPort: {{ .targetPort | default (required "every entry of service.extraPorts needs a port" .port) }}
               protocol: {{ .protocol | default "TCP" }}
             {{- end }}
+          {{- $probes := .Values.probes | default dict }}
+          {{- if $probes.enabled }}
+          # Startup and liveness ask whether the runtime runs, readiness whether it works. A runtime
+          # that runs but is not ready, for example without a license, is not restarted.
+          startupProbe:
+            {{- include "opc-router.healthGet" (list . "/health/runtime/live") | nindent 12 }}
+            periodSeconds: {{ dig "startupProbe" "periodSeconds" 10 $probes }}
+            timeoutSeconds: {{ dig "startupProbe" "timeoutSeconds" 5 $probes }}
+            failureThreshold: {{ dig "startupProbe" "failureThreshold" 60 $probes }}
+          readinessProbe:
+            {{- include "opc-router.healthGet" (list . "/health/runtime/ready") | nindent 12 }}
+            periodSeconds: {{ dig "readinessProbe" "periodSeconds" 10 $probes }}
+            timeoutSeconds: {{ dig "readinessProbe" "timeoutSeconds" 5 $probes }}
+            failureThreshold: {{ dig "readinessProbe" "failureThreshold" 3 $probes }}
+          livenessProbe:
+            {{- include "opc-router.healthGet" (list . "/health/runtime/live") | nindent 12 }}
+            periodSeconds: {{ dig "livenessProbe" "periodSeconds" 30 $probes }}
+            timeoutSeconds: {{ dig "livenessProbe" "timeoutSeconds" 10 $probes }}
+            failureThreshold: {{ dig "livenessProbe" "failureThreshold" 6 $probes }}
+          {{- end }}
           # Environment variables for the opcrouter container
           env:
           # Variables for connecting a service to the mongodb if a service is specified

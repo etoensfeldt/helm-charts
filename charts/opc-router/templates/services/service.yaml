@@ -35,6 +35,9 @@ spec:
   {{- with .Values.service.loadBalancerIP }}
   loadBalancerIP: {{ . }}
   {{- end }}
+  {{- if and (dig "enabled" false (.Values.probes | default dict)) (dig "publishNotReadyAddresses" true .Values.service) }}
+  publishNotReadyAddresses: true
+  {{- end }}
   selector:
     {{- include "opc-router.workloadSelectorLabels" . | nindent 4 }}
 {{- end }}
