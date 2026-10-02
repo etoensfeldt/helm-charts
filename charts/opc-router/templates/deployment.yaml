@@ -175,8 +175,30 @@ spec:
             readOnly: true
           {{- end }}
         {{- end }}
-      # Init container for pulling the project files
+      {{- end }}
+      {{- $prepareLogFolder := and (not .Values.mongodb.deploy) (ne .Values.prepareLogFolder false) }}
+      {{- if or $prepareLogFolder .Values.project.projectRepo }}
       initContainers:
+      {{- if $prepareLogFolder }}
+      # The embedded database's startup check writes into /var/log/opcrouter/mongodb before the image
+      # creates that folder, so a new, empty log volume next to an existing database fails the start.
+      # An image without a mongodb user has no embedded database and is left untouched.
+      - name: prepare-log-folder
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["sh", "-c"]
+        args:
+          - if id mongodb > /dev/null 2>&1; then mkdir -p /var/log/opcrouter/mongodb && chown mongodb:mongodb /var/log/opcrouter/mongodb; fi
+        {{- with .Values.helperResources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: /var/log/opcrouter
+          name: log-volume
+      {{- end }}
+      {{- if .Values.project.projectRepo }}
+      # Init container for pulling the project files
       - name: pull-project
         image: "{{ .Values.project.gitImage.repository }}:{{ .Values.project.gitImage.tag }}"
         imagePullPolicy: {{ .Values.project.gitImage.pullPolicy }}
@@ -198,6 +220,7 @@ spec:
           name: ssh-volume
           readOnly: true
         {{- end }}
+      {{- end }}
       {{- end }}
       # Volume for the project and configuration file
       volumes:

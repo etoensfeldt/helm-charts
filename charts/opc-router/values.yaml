@@ -213,6 +213,11 @@ helperResources: {}
   #   cpu: 50m
   #   memory: 64Mi
 
+# With the embedded database (mongodb.deploy=false), create the MongoDB log folder on the log
+# volume before the router starts. Without it, a new log volume next to an existing database makes
+# every start fail.
+prepareLogFolder: true
+
 # The connection test run by "helm test".
 tests:
   image:

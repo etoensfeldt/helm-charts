@@ -1,0 +1,54 @@
+suite: log folder of the embedded database
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: has no init container with a separate MongoDB and no project
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: prepares the MongoDB log folder with the router image when the database is embedded
+    set:
+      image:
+        repository: opcrouter/runtime
+        tag: "5.7"
+      mongodb:
+        deploy: false
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-log-folder
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: opcrouter/runtime:5.7
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: mkdir -p /var/log/opcrouter/mongodb && chown mongodb:mongodb /var/log/opcrouter/mongodb
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            mountPath: /var/log/opcrouter
+            name: log-volume
+
+  - it: runs the log folder preparation before the project clone
+    set:
+      mongodb:
+        deploy: false
+      project:
+        projectRepo: https://example.com/project.git
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-log-folder
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: pull-project
+
+  - it: can be switched off
+    set:
+      mongodb:
+        deploy: false
+      prepareLogFolder: false
+    asserts:
+      - notExists:
+          path: spec.template.spec.initContainers
