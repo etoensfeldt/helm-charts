@@ -148,14 +148,13 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-Create the connection string for the mongodb(s)
+Connection string of the bundled MongoDB. The router supports only a single-member replica set: a
+connection string with several hosts stops it from starting, and losing a member of a larger set
+stalls it.
 */}}
-{{- define "getMongoDB" }}
-{{- $addresses := int .Values.mongodb.replicaCount | until }}
-{{- range $addresses -}}
-{{- if (ne . 0) -}}
-,
+{{- define "getMongoDB" -}}
+{{- if gt (int .Values.mongodb.replicaCount) 1 -}}
+{{- fail "mongodb.replicaCount must be 1: the router supports only a single-member MongoDB replica set. For high availability use the router's redundancy mode." -}}
 {{- end -}}
-"mongodb://{{ $.Release.Name }}-mongodb-{{ . }}.{{ $.Release.Name }}-mongodb-headless"
-{{- end }}
+"mongodb://{{ .Release.Name }}-mongodb-0.{{ .Release.Name }}-mongodb-headless"
 {{- end }}

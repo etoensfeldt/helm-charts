@@ -58,7 +58,8 @@ mongodb:
   # When true, an external mongodb will be deployed which the opcrouter will use.
   # Required to be true when using the opcrouter/service image, as it doesn't have a integrated database.
   deploy: true
-  # Number of deployed mongodb pods. Should be at 1 except when utilizing a replica twin, then set to 2.
+  # Number of MongoDB pods. Must stay 1: the router supports only a single-member replica set. For
+  # high availability use the router's redundancy mode, not further MongoDB members.
   replicaCount: 1
   architecture: replicaset
   replicaSetName: rs0
