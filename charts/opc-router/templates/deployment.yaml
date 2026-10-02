@@ -278,13 +278,11 @@ spec:
       {{- if not .Values.webManagement.https.disable }}
       - name: https-volume
         secret:
-          type: kubernetes.io/tls
           secretName: {{ .Values.webManagement.https.existingTlsSecret | default (printf "%s-%s" (include "opc-router.fullname" $) "tls-secret" | trunc 63 | trimSuffix "-")}}
       {{- end }}
       {{- if (or .Values.project.auth.ssh_key .Values.project.auth.ssh_secret) }}
       - name: ssh-volume
         secret:
-          type: kubernetes.io/ssh-auth
           secretName: {{ .Values.project.auth.ssh_secret | default (printf "%s-%s" (include "opc-router.fullname" $) "ssh-secret" | trunc 63 | trimSuffix "-")}}
       {{- end }}
       {{- if .Values.project.projectRepo }}
