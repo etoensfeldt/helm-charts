@@ -26,5 +26,6 @@ appVersion: "5.3"
 dependencies:
  - name: mongodb
    condition: mongodb.deploy
-   version: ~10.x
+   # Pinned: every published 1.0.x release resolved ~10.x to 10.31.5.
+   version: 10.31.5
    repository: https://raw.githubusercontent.com/bitnami/charts/archive-full-index/bitnami

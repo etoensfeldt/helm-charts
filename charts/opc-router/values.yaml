@@ -50,6 +50,12 @@ mongodb:
   replicaCount: 1
   architecture: replicaset
   replicaSetName: rs0
+  image:
+    # Bitnami no longer publishes versioned images under docker.io/bitnami. The frozen
+    # bitnamilegacy repository keeps them; 4.4.15 is the newest MongoDB 4.4 build there.
+    registry: docker.io
+    repository: bitnamilegacy/mongodb
+    tag: "4.4.15"
   directoryPerDB: true
   arbiter:
     enabled: false
