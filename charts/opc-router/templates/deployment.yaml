@@ -9,8 +9,7 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "opc-router.labels" . | nindent 6 }}
-      {{- include "opc-router.originalSelectorLabels" . | nindent 6 }}
+      {{- include "opc-router.workloadSelectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -18,11 +17,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "opc-router.labels" . | nindent 8 }}
-        {{- include "opc-router.originalSelectorLabels" . | nindent 8 }}
-        {{- if not .Values.mongodb.deploy }}
-        {{- include "opc-router.selectorLabels" . | nindent 8 }}
-        {{- end }}
+        {{- include "opc-router.podLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:

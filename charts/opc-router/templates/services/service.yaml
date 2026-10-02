@@ -27,5 +27,5 @@ spec:
   loadBalancerIP: {{ . }}
   {{- end }}
   selector:
-    {{- include "opc-router.labels" . | nindent 4 }}
+    {{- include "opc-router.workloadSelectorLabels" . | nindent 4 }}
 {{- end }}

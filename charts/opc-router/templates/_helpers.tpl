@@ -56,6 +56,34 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+Selector labels of the router workload and its Service. Kubernetes does not allow the selector of
+an existing Deployment to change, and chart versions up to 1.0.4 put the chart version into it. A
+release that already has its Deployment therefore keeps the selector it was created with; new
+releases get labels that stay stable across chart versions. lookup is empty under helm template.
+*/}}
+{{- define "opc-router.workloadSelectorLabels" -}}
+{{- $existing := lookup "apps/v1" "Deployment" .Release.Namespace (include "opc-router.fullname" .) -}}
+{{- $matchLabels := dig "spec" "selector" "matchLabels" dict $existing -}}
+{{- if $matchLabels -}}
+{{- toYaml $matchLabels -}}
+{{- else -}}
+app.kubernetes.io/name: {{ include "opc-router.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: router
+{{- end -}}
+{{- end }}
+
+{{/*
+Labels of the router pod: the selector labels, completed by the common labels. Where both name the
+same key, the selector's value wins, so a kept selector still matches its pods.
+*/}}
+{{- define "opc-router.podLabels" -}}
+{{- $selector := include "opc-router.workloadSelectorLabels" . | fromYaml -}}
+{{- $common := include "opc-router.labels" . | fromYaml -}}
+{{- toYaml (merge $selector $common (dict "app.kubernetes.io/component" "router")) -}}
+{{- end }}
+
+{{/*
 Selector labels
 */}}
 {{- define "opc-router.selectorLabels" -}}
