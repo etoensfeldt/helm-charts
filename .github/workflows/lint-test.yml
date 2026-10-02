@@ -48,5 +48,13 @@ jobs:
         if: startsWith(matrix.helm, 'v3')
         run: ct lint --config .github/ct.yaml --target-branch ${{ github.event.repository.default_branch }}
 
+      - name: Install helm-unittest
+        if: startsWith(matrix.helm, 'v3')
+        run: helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.2.0
+
+      - name: Unit tests
+        if: startsWith(matrix.helm, 'v3')
+        run: helm unittest charts/opc-router
+
       - name: Lint, render and validate every CI values file
         run: .github/scripts/render-matrix.sh
