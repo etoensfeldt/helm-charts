@@ -67,7 +67,7 @@ Commands to continuously update the project and restart the pod on new version
       git fetch;
       if [ \$(git rev-parse HEAD) != \$(git rev-parse @{u}) ]; then
         git pull;
-        curl -XDELETE http://localhost:8001/api/v1/namespaces/{{ .Release.Namespace }}/pods?labelSelector=app.kubernetes.io/name={{ .Chart.Name }};
+        curl -XDELETE "http://localhost:8001/api/v1/namespaces/{{ .Release.Namespace }}/pods?labelSelector=app.kubernetes.io/name={{ include "opc-router.name" . }},app.kubernetes.io/instance={{ .Release.Name }}";
       fi
     done
   EOF
