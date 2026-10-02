@@ -23,10 +23,6 @@ If release name contains chart name it will be used as a full name.
 {{- end }}
 {{- end }}
 
-{{- define "opc-router.redundancy.fullname" -}}
-{{- include "opc-router.fullname" . | cat "redundant" | replace " " "-" | trunc 63 | trimSuffix "-" }}
-{{- end }}
-
 {{- define "opc-router.inray.fullname" -}}
 {{- include "opc-router.fullname" . | cat "inray" | replace " " "-" | trunc 63 | trimSuffix "-" }}
 {{- end }}
@@ -119,21 +115,6 @@ httpGet:
   path: {{ index . 1 }}
   port: web-management
   scheme: {{ if $root.Values.webManagement.https.disable }}HTTP{{ else }}HTTPS{{ end }}
-{{- end }}
-
-{{/*
-Selector labels
-*/}}
-{{- define "opc-router.selectorLabels" -}}
-app.kubernetes.io/instance: {{ .Release.Name }}
-statefulset.kubernetes.io/pod-name: {{ include "opc-router.fullname" . }}
-{{- end }}
-
-{{/*
-Original selector labels
-*/}}
-{{- define "opc-router.originalSelectorLabels" -}}
-originForRedundency: {{ include "opc-router.redundancy.fullname" . }}
 {{- end }}
 
 {{/*
