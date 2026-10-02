@@ -58,6 +58,11 @@ spec:
               containerPort: 27017
               protocol: TCP
             {{- end }}
+            {{- range .Values.service.extraPorts }}
+            - name: {{ required "every entry of service.extraPorts needs a name" .name }}
+              containerPort: {{ .targetPort | default (required "every entry of service.extraPorts needs a port" .port) }}
+              protocol: {{ .protocol | default "TCP" }}
+            {{- end }}
           # Environment variables for the opcrouter container
           env:
           # Variables for connecting a service to the mongodb if a service is specified
@@ -114,6 +119,9 @@ spec:
           {{- range .Values.envVars }}
           {{- $envNames = append $envNames (keys . | first) }}
           {{- end }}
+          {{- range .Values.extraEnv }}
+          {{- $envNames = append $envNames .name }}
+          {{- end }}
           {{- if not (has "S6_BEHAVIOUR_IF_STAGE2_FAILS" $envNames) }}
           # Stop the container when a startup step fails, so Kubernetes restarts it instead of
           # leaving a running pod that never answers.
@@ -124,6 +132,9 @@ spec:
           {{- range .Values.envVars }}
           - name: "{{ keys . | first }}"
             value: "{{ values . | first }}"
+          {{- end }}
+          {{- with .Values.extraEnv }}
+          {{- toYaml . | nindent 10 }}
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
@@ -141,6 +152,9 @@ spec:
           {{- if .Values.project.projectRepo }}
           - mountPath: /data/project
             name: project-volume
+          {{- end }}
+          {{- with .Values.extraVolumeMounts }}
+          {{- toYaml . | nindent 10 }}
           {{- end }}
       {{- if .Values.project.projectRepo }}
         {{- if not .Values.project.autoUpdate.disable }}
@@ -177,7 +191,7 @@ spec:
         {{- end }}
       {{- end }}
       {{- $prepareLogFolder := and (not .Values.mongodb.deploy) (ne .Values.prepareLogFolder false) }}
-      {{- if or $prepareLogFolder .Values.project.projectRepo }}
+      {{- if or $prepareLogFolder .Values.project.projectRepo .Values.extraInitContainers }}
       initContainers:
       {{- if $prepareLogFolder }}
       # The embedded database's startup check writes into /var/log/opcrouter/mongodb before the image
@@ -221,6 +235,9 @@ spec:
           readOnly: true
         {{- end }}
       {{- end }}
+      {{- with .Values.extraInitContainers }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
       {{- end }}
       # Volume for the project and configuration file
       volumes:
@@ -245,6 +262,9 @@ spec:
       {{- if .Values.project.projectRepo }}
       - name: project-volume
         emptyDir: {}
+      {{- end }}
+      {{- with .Values.extraVolumes }}
+      {{- toYaml . | nindent 6 }}
       {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

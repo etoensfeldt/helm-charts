@@ -42,6 +42,18 @@ podSecurityContext: {}
 # ]
 envVars: []
 
+# Further environment variables of the router container as Kubernetes EnvVar entries. Unlike
+# envVars they can take a value from a Secret or a ConfigMap, for example the initial user's
+# password (leave webManagement.auth.initialUser.password empty then):
+#   extraEnv:
+#     - name: INITIAL_PASSWORD
+#       valueFrom:
+#         secretKeyRef:
+#           name: opc-router-initial-user
+#           key: password
+# Do not repeat a variable the chart sets from its own values; change that value instead.
+extraEnv: []
+
 mongodb:
   # When true, an external mongodb will be deployed which the opcrouter will use.
   # Required to be true when using the opcrouter/service image, as it doesn't have a integrated database.
@@ -118,9 +130,18 @@ service:
   # Used by some cloud providers to add external load balancers.
   # If not supported, it is just ignored.
   loadBalancerIP:
-  # Annotations for service. 
+  # Annotations for service.
   # Some cloud providers may need special annotations for their loadbalancers to work.
   annotations: {}
+  # Further ports of the router, opened on the router container and on this service, for example
+  # the OPC UA server of a project or a listener of a plug-in:
+  #   extraPorts:
+  #     - name: opcua          # required; at most 15 lowercase letters, digits and '-'
+  #       port: 49420          # required; the port of the service
+  #       targetPort: 49420    # the port in the container; defaults to port
+  #       protocol: TCP        # defaults to TCP
+  #       nodePort: 31420      # NodePort and LoadBalancer only
+  extraPorts: []
 
 claims:
   log:
@@ -217,6 +238,23 @@ helperResources: {}
 # volume before the router starts. Without it, a new log volume next to an existing database makes
 # every start fail.
 prepareLogFolder: true
+
+# Further volumes of the router pod and their mounts in the router container, for example an
+# odbc.ini from a ConfigMap for the ODBC plug-in:
+#   extraVolumes:
+#     - name: odbc
+#       configMap:
+#         name: odbc-ini
+#   extraVolumeMounts:
+#     - name: odbc
+#       mountPath: /etc/odbc.ini
+#       subPath: odbc.ini
+extraVolumes: []
+extraVolumeMounts: []
+
+# Further init containers, run after the chart's own ones. Where a policy demands resource limits,
+# give them their own.
+extraInitContainers: []
 
 # The connection test run by "helm test".
 tests:
