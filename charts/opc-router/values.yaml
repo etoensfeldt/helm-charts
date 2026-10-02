@@ -207,6 +207,15 @@ affinity: {}
 # The size of the history of deployments kept for potential rollbacks.
 containerHistoryLimit: 10
 
+# How the router pod is replaced on an upgrade. Empty means: Recreate when the router embeds its
+# database (mongodb.deploy=false), because two pods on one data volume cannot both start; with a
+# separate MongoDB the Kubernetes default (RollingUpdate) applies. On clusters with several nodes a
+# rolling update also stalls on the ReadWriteOnce data volume, so set Recreate there:
+#   updateStrategy:
+#     type: Recreate
+#     rollingUpdate: null
+updateStrategy: {}
+
 # Switching this to to true represents accepting the terms and conditions of the end user license agreement.
 # If this is false the opc router container won't be able to run.
 # https://www.opc-router.com/terms-of-use-and-eula/

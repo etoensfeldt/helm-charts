@@ -7,6 +7,15 @@ metadata:
 spec:
   revisionHistoryLimit: {{ .Values.containerHistoryLimit }}
   replicas: 1
+  {{- if .Values.updateStrategy }}
+  strategy:
+    {{- toYaml .Values.updateStrategy | nindent 4 }}
+  {{- else if not .Values.mongodb.deploy }}
+  # Two routers on one embedded database cannot both start, so the old pod goes first.
+  strategy:
+    type: Recreate
+    rollingUpdate: null
+  {{- end }}
   selector:
     matchLabels:
       {{- include "opc-router.workloadSelectorLabels" . | nindent 6 }}
@@ -99,6 +108,16 @@ spec:
           {{- end }}
           - name: OR_I_ACCEPT_EULA
             value: {{ .Values.I_do_accept_the_EULA | quote }}
+          {{- $envNames := list }}
+          {{- range .Values.envVars }}
+          {{- $envNames = append $envNames (keys . | first) }}
+          {{- end }}
+          {{- if not (has "S6_BEHAVIOUR_IF_STAGE2_FAILS" $envNames) }}
+          # Stop the container when a startup step fails, so Kubernetes restarts it instead of
+          # leaving a running pod that never answers.
+          - name: S6_BEHAVIOUR_IF_STAGE2_FAILS
+            value: "2"
+          {{- end }}
           # Loading environment variables specified in the values file
           {{- range .Values.envVars }}
           - name: "{{ keys . | first }}"
