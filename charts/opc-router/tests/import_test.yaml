@@ -1,0 +1,76 @@
+suite: project import
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: imports nothing without a project repository
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OR_IMPORT_ALLOW_CLEAR_CONFIG
+            value: "true"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OR_IMPORT_OVERWRITE_EXISTING
+            value: "true"
+
+  - it: clears the configuration before the import, as before
+    set:
+      project:
+        projectRepo: https://example.com/project.git
+        projectPath: Sampleproject.rpe
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OR_IMPORT_ALLOW_CLEAR_CONFIG
+            value: "true"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OR_IMPORT_OVERWRITE_EXISTING
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OR_IMPORT_SOURCE
+            value: /data/project/Sampleproject.rpe
+
+  - it: imports over the existing configuration in overwrite mode
+    set:
+      project:
+        projectRepo: https://example.com/project.git
+        importMode: overwrite
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OR_IMPORT_OVERWRITE_EXISTING
+            value: "true"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OR_IMPORT_ALLOW_CLEAR_CONFIG
+            value: "true"
+
+  - it: clears when an upgrade reused values without the mode
+    set:
+      project:
+        projectRepo: https://example.com/project.git
+        importMode: null
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OR_IMPORT_ALLOW_CLEAR_CONFIG
+            value: "true"
+
+  - it: refuses an unknown mode
+    set:
+      project:
+        projectRepo: https://example.com/project.git
+        importMode: merge
+    asserts:
+      - failedTemplate:
+          errorPattern: project.importMode must be clear or overwrite, not merge

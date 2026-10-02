@@ -124,8 +124,16 @@ spec:
           {{- if .Values.project.projectRepo }}
           - name: OR_IMPORT_SOURCE
             value: "/data/project/{{ .Values.project.projectPath }}"
+          {{- $importMode := .Values.project.importMode | default "clear" }}
+          {{- if eq $importMode "overwrite" }}
+          - name: OR_IMPORT_OVERWRITE_EXISTING
+            value: "true"
+          {{- else if eq $importMode "clear" }}
           - name: OR_IMPORT_ALLOW_CLEAR_CONFIG
             value: "true"
+          {{- else }}
+          {{- fail (printf "project.importMode must be clear or overwrite, not %s" $importMode) }}
+          {{- end }}
           - name: OR_IMPORT_RUNTIME_CONFIGURATION_FILE
             value: "/data/project/{{ .Values.project.configPath }}"
           {{- end }}
