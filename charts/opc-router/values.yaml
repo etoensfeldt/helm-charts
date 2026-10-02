@@ -83,13 +83,23 @@ mongodb:
     replicaSetKey:
     # If no secret or password is provided, mongodb will autogenerate these.
 
+# Security context of the router container. The image starts as root and switches to its own
+# service users, so it needs user ID 0, the capabilities CHOWN, SETUID, SETGID, FOWNER and
+# DAC_OVERRIDE, and a writable root filesystem. Another user, dropping these capabilities or
+# readOnlyRootFilesystem: true stop the router from starting. OpenShift's default security context
+# constraint does not allow this; the pod needs anyuid or an equivalent (not tested on OpenShift).
+# A context that grants only what the router needs:
+#   securityContext:
+#     capabilities:
+#       drop:
+#         - ALL
+#       add:
+#         - CHOWN
+#         - SETUID
+#         - SETGID
+#         - FOWNER
+#         - DAC_OVERRIDE
 securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
 
 webManagement:
   https:
