@@ -124,8 +124,10 @@ service:
 
 claims:
   log:
-    # Storage capacity of logging volume claim.
-    capacity: "1Gi"
+    # Size of the log volume (/var/log/opcrouter). Empty: an existing claim keeps its size; a new
+    # install gets 6Gi with the embedded database (2 x 1 GB runtime logs, 2 x 1 GB management logs,
+    # 2 GB MongoDB log) and 4Gi with a separate MongoDB.
+    capacity: ""
     # Storage class name of logging volume claim.
     # If left as empty, will use default storage class, when availible.
     storageClassName:
@@ -147,8 +149,10 @@ claims:
       # Node affinity settings of logging volume.
       nodeAffinity: {}
   inray:
-    # Storage capacity of license volume claim.
-    capacity: "100M"
+    # Size of the data volume (/data: configuration, license identity and, without a separate
+    # MongoDB, the embedded database). Empty: an existing claim keeps its size; a new install gets
+    # 10Gi with the embedded database and 1Gi with a separate MongoDB.
+    capacity: ""
     # Storage class name of license volume claim.
     # If left as empty, will use default storage class, when availible.
     storageClassName:

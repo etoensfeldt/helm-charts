@@ -11,7 +11,7 @@ spec:
   storageClassName: {{ . }}
   {{- end }}
   capacity: 
-    storage: {{ .Values.claims.log.capacity }}
+    storage: {{ include "opc-router.claimCapacity" (list . "log") }}
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: {{ .Values.claims.log.storageVolume.reclaimPolicy }}

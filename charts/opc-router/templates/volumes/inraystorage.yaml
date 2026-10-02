@@ -11,7 +11,7 @@ spec:
   storageClassName: {{ . }}
   {{- end }}
   capacity: 
-    storage: {{ .Values.claims.inray.capacity }}
+    storage: {{ include "opc-router.claimCapacity" (list . "inray") }}
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: {{ .Values.claims.inray.storageVolume.reclaimPolicy }}

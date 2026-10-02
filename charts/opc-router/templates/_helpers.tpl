@@ -84,6 +84,32 @@ same key, the selector's value wins, so a kept selector still matches its pods.
 {{- end }}
 
 {{/*
+Requested size of a claim, called with (list $ "inray") or (list $ "log"): the configured capacity;
+otherwise the size of the release's existing claim, because a bound claim cannot shrink and growing
+it needs a storage class that allows expansion; otherwise the default for a new install. The data
+claim holds the embedded database when the router runs without a separate MongoDB.
+*/}}
+{{- define "opc-router.claimCapacity" -}}
+{{- $root := index . 0 -}}
+{{- $claim := index . 1 -}}
+{{- $configured := dig $claim "capacity" "" ($root.Values.claims | default dict) -}}
+{{- if $configured -}}
+{{- $configured -}}
+{{- else -}}
+{{- $name := ternary (include "opc-router.inray.fullname" $root) (include "opc-router.log.fullname" $root) (eq $claim "inray") -}}
+{{- $existing := lookup "v1" "PersistentVolumeClaim" $root.Release.Namespace $name -}}
+{{- $existingSize := dig "spec" "resources" "requests" "storage" "" $existing -}}
+{{- if $existingSize -}}
+{{- $existingSize -}}
+{{- else if $root.Values.mongodb.deploy -}}
+{{- ternary "1Gi" "4Gi" (eq $claim "inray") -}}
+{{- else -}}
+{{- ternary "10Gi" "6Gi" (eq $claim "inray") -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Selector labels
 */}}
 {{- define "opc-router.selectorLabels" -}}
