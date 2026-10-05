@@ -261,8 +261,8 @@ resources: {}
   #   memory: 128Mi
 
 # Resource requests and limits of the helper containers: the project clone, the project
-# auto-update with its kubectl proxy, and the log folder preparation of the embedded database.
-# Clusters that reject containers without limits need them set here as well.
+# auto-update with its kubectl proxy, and the log folder preparation and log rotation of the
+# embedded database. Clusters that reject containers without limits need them set here as well.
 helperResources: {}
   # limits:
   #   cpu: 100m
