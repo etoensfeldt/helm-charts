@@ -65,8 +65,8 @@ spec:
             {{- end }}
           {{- $probes := .Values.probes | default dict }}
           {{- if $probes.enabled }}
-          # Startup and liveness ask whether the runtime runs, readiness whether it works. A runtime
-          # that runs but is not ready, for example without a license, is not restarted.
+          # Startup and liveness ask whether the runtime runs, readiness whether it works, so a
+          # runtime that runs but reports not ready is not restarted for that.
           startupProbe:
             {{- include "opc-router.healthGet" (list . "/health/runtime/live") | nindent 12 }}
             periodSeconds: {{ dig "startupProbe" "periodSeconds" 10 $probes }}
@@ -252,7 +252,14 @@ spec:
         command: ["sh", "-c"]
         args:
           - if id mongodb > /dev/null 2>&1; then mkdir -p /var/log/opcrouter/mongodb && chown mongodb:mongodb /var/log/opcrouter/mongodb; fi
-        {{- with .Values.helperResources }}
+        # Upgrades add this container to running installations, so it takes the router's security
+        # context and, without helperResources, the router's resources: a policy that admitted the
+        # router admits it too, and an init container does not raise the pod's requests.
+        {{- with .Values.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with (.Values.helperResources | default .Values.resources) }}
         resources:
           {{- toYaml . | nindent 10 }}
         {{- end }}

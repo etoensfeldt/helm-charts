@@ -44,6 +44,53 @@ tests:
           path: spec.template.spec.initContainers[1].name
           value: pull-project
 
+  # An upgrade adds this container to a running installation; a policy that admitted the router
+  # must admit it as well.
+  - it: takes the router's resources and security context when no helper resources are set
+    set:
+      mongodb:
+        deploy: false
+      resources:
+        limits:
+          cpu: "2"
+          memory: 4Gi
+      securityContext:
+        capabilities:
+          drop: [ALL]
+          add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.capabilities.drop
+          value: [ALL]
+
+  - it: takes the helper resources when they are set
+    set:
+      mongodb:
+        deploy: false
+      resources:
+        limits:
+          memory: 4Gi
+      helperResources:
+        limits:
+          memory: 64Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 64Mi
+
+  - it: prepares the folder when an upgrade reused values without the switch
+    set:
+      mongodb:
+        deploy: false
+      prepareLogFolder: null
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: prepare-log-folder
+
   - it: can be switched off
     set:
       mongodb:
