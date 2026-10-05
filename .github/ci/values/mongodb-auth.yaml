@@ -4,4 +4,4 @@ mongodb:
   auth:
     enabled: true
     rootPassword: ci-only-placeholder
-    replicaSetKey: ci-only-placeholder-key
+    replicaSetKey: ciOnlyPlaceholderKey
