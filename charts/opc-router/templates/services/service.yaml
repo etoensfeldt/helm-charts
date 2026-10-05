@@ -35,8 +35,14 @@ spec:
   {{- with .Values.service.loadBalancerIP }}
   loadBalancerIP: {{ . }}
   {{- end }}
-  {{- if and (dig "enabled" false (.Values.probes | default dict)) (dig "publishNotReadyAddresses" true .Values.service) }}
+  {{- if dig "enabled" false (.Values.probes | default dict) }}
+  {{- $publish := dig "publishNotReadyAddresses" "" .Values.service | toString }}
+  {{- if not (has $publish (list "true" "false")) }}
+  {{- $publish = ternary "true" "false" (eq (include "opc-router.updateStrategyType" .) "Recreate") }}
+  {{- end }}
+  {{- if eq $publish "true" }}
   publishNotReadyAddresses: true
+  {{- end }}
   {{- end }}
   selector:
     {{- include "opc-router.workloadSelectorLabels" . | nindent 4 }}

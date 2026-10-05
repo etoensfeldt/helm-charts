@@ -50,8 +50,54 @@ tests:
         equal:
           path: spec.template.spec.containers[0].livenessProbe.httpGet.path
           value: /health/runtime/live
+      # A rolling update keeps the old router serving until its successor is ready.
       - template: templates/services/service.yaml
-        equal:
+        notExists:
+          path: spec.publishNotReadyAddresses
+
+  - it: leaves the service as it was without probes, also with the embedded database
+    set:
+      mongodb:
+        deploy: false
+    template: templates/services/service.yaml
+    asserts:
+      - notExists:
+          path: spec.publishNotReadyAddresses
+
+  - it: keeps a router that is not ready reachable when it embeds its database
+    set:
+      probes:
+        enabled: true
+      mongodb:
+        deploy: false
+    template: templates/services/service.yaml
+    asserts:
+      - equal:
+          path: spec.publishNotReadyAddresses
+          value: true
+
+  - it: keeps a router that is not ready reachable when the pod is replaced with Recreate
+    set:
+      probes:
+        enabled: true
+      updateStrategy:
+        type: Recreate
+        rollingUpdate: null
+    template: templates/services/service.yaml
+    asserts:
+      - equal:
+          path: spec.publishNotReadyAddresses
+          value: true
+
+  - it: publishes a router that is not ready when told so, also with a rolling update
+    set:
+      probes:
+        enabled: true
+      service:
+        publishNotReadyAddresses: true
+    template: templates/services/service.yaml
+    asserts:
+      - equal:
           path: spec.publishNotReadyAddresses
           value: true
 
@@ -111,10 +157,12 @@ tests:
           path: spec.template.spec.containers[0].livenessProbe.periodSeconds
           value: 30
 
-  - it: can hide a pod that is not ready from the service
+  - it: can hide a pod that is not ready from the service, also with the embedded database
     set:
       probes:
         enabled: true
+      mongodb:
+        deploy: false
       service:
         publishNotReadyAddresses: false
     template: templates/services/service.yaml

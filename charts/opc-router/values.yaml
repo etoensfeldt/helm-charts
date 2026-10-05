@@ -153,9 +153,12 @@ service:
   #       protocol: TCP        # defaults to TCP
   #       nodePort: 31420      # NodePort and LoadBalancer only
   extraPorts: []
-  # With probes enabled: keep the web management reachable through this service while the runtime
-  # reports not ready, for example during a database migration or without a valid license.
-  publishNotReadyAddresses: true
+  # With probes enabled: whether this service also routes to a router pod that is not ready. Empty
+  # means yes when the pod is replaced with Recreate (the embedded database, or updateStrategy
+  # Recreate), so the web management stays reachable while the runtime is not ready, for example
+  # during a database migration or without a valid license; and no with a rolling update, so that
+  # clients reach only the ready router while its successor starts.
+  publishNotReadyAddresses: ""
 
 claims:
   log:

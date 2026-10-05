@@ -106,6 +106,21 @@ claim holds the embedded database when the router runs without a separate MongoD
 {{- end }}
 
 {{/*
+How the router pod is replaced: the configured strategy, else Recreate when the router embeds its
+database, else the Kubernetes default.
+*/}}
+{{- define "opc-router.updateStrategyType" -}}
+{{- $configured := .Values.updateStrategy | default dict -}}
+{{- if $configured -}}
+{{- dig "type" "RollingUpdate" $configured -}}
+{{- else if not .Values.mongodb.deploy -}}
+Recreate
+{{- else -}}
+RollingUpdate
+{{- end -}}
+{{- end }}
+
+{{/*
 HTTP request of a probe on one of the runtime's health routes, called with (list $ "<path>"). The
 routes answer without login; with HTTPS, port 8080 only redirects, so the probe follows the web port.
 */}}
