@@ -366,7 +366,7 @@ The same keys exist under `claims.inray` (`/data`) and `claims.log` (`/var/log/o
 | `claims.*.storageVolume.volumeType`          | Volume type of that volume.                                                                  | `local`       |
 | `claims.*.storageVolume.volumeTypeOptions`   | Settings of the volume type.                                                                 | path          |
 | `claims.*.storageVolume.mountOptions`        | Mount options of that volume.                                                                | `[]`          |
-| `claims.*.storageVolume.nodeAffinity`        | Node affinity of that volume.                                                                | `{}`          |
+| `claims.*.storageVolume.nodeAffinity`        | Node affinity of that volume; required with the volume type `local`, which lives on one node. | `{}`          |
 
 ### **Bundled MongoDB parameters**
 

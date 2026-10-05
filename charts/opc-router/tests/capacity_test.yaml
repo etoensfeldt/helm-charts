@@ -3,6 +3,7 @@ templates:
   - templates/volumes/claims/inrayclaim.yaml
   - templates/volumes/claims/logclaim.yaml
   - templates/volumes/inraystorage.yaml
+  - templates/volumes/logstorage.yaml
 release:
   name: r1
   namespace: ns1
@@ -32,6 +33,29 @@ tests:
           path: spec.resources.requests.storage
           value: 6Gi
 
+  # The API rejects a local volume without node affinity; the chart says so before the install starts.
+  - it: refuses a local data volume without node affinity
+    template: templates/volumes/inraystorage.yaml
+    set:
+      claims:
+        inray:
+          storageVolume:
+            createVolume: true
+    asserts:
+      - failedTemplate:
+          errorPattern: claims.inray.storageVolume.nodeAffinity is required with volumeType local
+
+  - it: refuses a local log volume without node affinity
+    template: templates/volumes/logstorage.yaml
+    set:
+      claims:
+        log:
+          storageVolume:
+            createVolume: true
+    asserts:
+      - failedTemplate:
+          errorPattern: claims.log.storageVolume.nodeAffinity is required with volumeType local
+
   - it: gives a volume the chart creates the same size as its claim
     template: templates/volumes/inraystorage.yaml
     set:
@@ -41,6 +65,13 @@ tests:
         inray:
           storageVolume:
             createVolume: true
+            nodeAffinity:
+              required:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: In
+                        values: [node-1]
     asserts:
       - equal:
           path: spec.capacity.storage
