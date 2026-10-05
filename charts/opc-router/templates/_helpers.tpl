@@ -119,11 +119,13 @@ Create the name of the service account to use
 {{/*
 Connection string of the bundled MongoDB. The router supports only a single-member replica set: a
 connection string with several hosts stops it from starting, and losing a member of a larger set
-stalls it.
+stalls it. The connection is direct: the router can initiate the set before the MongoDB chart does,
+and then the member carries the pod's short host name, which resolves only inside the MongoDB pod. A
+driver that follows the set's member names, as OPC Router 5.7's does, then finds no primary.
 */}}
 {{- define "getMongoDB" -}}
 {{- if gt (int .Values.mongodb.replicaCount) 1 -}}
 {{- fail "mongodb.replicaCount must be 1: the router supports only a single-member MongoDB replica set. For high availability use the router's redundancy mode." -}}
 {{- end -}}
-"mongodb://{{ .Release.Name }}-mongodb-0.{{ .Release.Name }}-mongodb-headless"
+"mongodb://{{ .Release.Name }}-mongodb-0.{{ .Release.Name }}-mongodb-headless/?directConnection=true"
 {{- end }}

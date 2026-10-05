@@ -10,7 +10,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: OR_DATABASE_CONNECTION_STRING
-            value: mongodb://r1-mongodb-0.r1-mongodb-headless
+            value: mongodb://r1-mongodb-0.r1-mongodb-headless/?directConnection=true
 
   - it: refuses several MongoDB members, which the router does not support
     set:
