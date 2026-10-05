@@ -172,6 +172,19 @@ helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reuse-values \
   --set mongodb.image.repository=bitnamilegacy/mongodb \
   --set mongodb.image.tag=4.4.15
 ```
+**With MongoDB authentication and generated passwords** (`mongodb.auth.enabled=true` without
+`rootPassword` and `replicaSetKey`), the MongoDB chart refuses every upgrade with `PASSWORDS ERROR: You
+must provide your current passwords` until you pass the current values. Read them from the release's
+Secret and add them to the upgrade; under this chart the keys are `mongodb.auth.*`, not the `auth.*`
+the message names:
+```shell
+export MONGODB_ROOT_PASSWORD=$(kubectl get secret my-opcrouter-mongodb -o jsonpath="{.data.mongodb-root-password}" | base64 -d)
+export MONGODB_REPLICA_SET_KEY=$(kubectl get secret my-opcrouter-mongodb -o jsonpath="{.data.mongodb-replica-set-key}" | base64 -d)
+helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reset-then-reuse-values \
+  --set mongodb.auth.rootPassword=$MONGODB_ROOT_PASSWORD \
+  --set mongodb.auth.replicaSetKey=$MONGODB_REPLICA_SET_KEY
+```
+
 To preview an upgrade, use `--dry-run=server`: the chart reads the existing Deployment and volume
 claims from the cluster, which a client-side dry run cannot.
 
