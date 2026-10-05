@@ -37,7 +37,6 @@
   - [**Requirements of the OPC Router on Kubernetes**](#requirements-of-the-opc-router-on-kubernetes)
   - [**Storage**](#storage)
   - [**Updates and downtime**](#updates-and-downtime)
-  - [**Health probes**](#health-probes)
   - [**Security**](#security)
   - [**WARNING: MongoDB root password and replica key set**](#warning-mongodb-root-password-and-replica-key-set)
   - [**Image versions**](#image-versions)
@@ -57,8 +56,8 @@
   MongoDB chart with MongoDB 4.4.15) as the router's database.
 - Alternatively it runs the `opcrouter/runtime` image, which carries its own database.
 - The router keeps its data on two persistent volumes, see [Storage](#storage).
-- Optionally it adds an Ingress, loads a project from a git repository and updates it
-  automatically, and probes the router's health.
+- Optionally it adds an Ingress, and loads a project from a git repository and updates it
+  automatically.
 
 # Getting Started
 
@@ -149,9 +148,8 @@ on: the names of its volumes, its pod selector and its database. It changes the 
   with `project.gitImage` and `project.autoUpdate.kubectlImage`.
 - `helm test` asks the runtime's readiness route and fails while the runtime is not ready.
 - A new installation gets volume sizes that fit how the router runs; an existing claim keeps its size.
-- New, all off by default: [health probes](#health-probes), extra ports, environment variables,
-  volumes and init containers, resources for every container, a project import mode and a rotation
-  of the embedded database's log.
+- New, all off by default: extra ports, environment variables, volumes and init containers,
+  resources for every container, a project import mode and a rotation of the embedded database's log.
 
 The upgrade replaces the router pod once, because its pod template changes. With the bundled MongoDB,
 a MongoDB pod that still runs another image restarts once on the new one (about 40 seconds on our test
@@ -256,8 +254,6 @@ Then, with your own values in `my-values.yaml`:
 helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reset-then-reuse-values \
   -f my-values.yaml --set image.tag=5.7.5000.16
 ```
-With [health probes](#health-probes) enabled, the startup budget covers the migration.
-
 # Configuration
 
 ## **Parameters**
@@ -304,10 +300,6 @@ These are read by the bundled MongoDB chart only.
 | `extraVolumes`                    | Further volumes of the router pod.                                                                                  | `[]`                |
 | `extraVolumeMounts`               | Further volume mounts of the router container.                                                                      | `[]`                |
 | `extraInitContainers`             | Further init containers, run after the chart's own.                                                                 | `[]`                |
-| `probes.enabled`                  | Health probes of the router container, see [Health probes](#health-probes).                                        | `false`             |
-| `probes.startupProbe.*`           | `periodSeconds`, `timeoutSeconds`, `failureThreshold` of the startup probe.                                         | `10`, `5`, `60`     |
-| `probes.readinessProbe.*`         | The same for the readiness probe.                                                                                   | `10`, `5`, `3`      |
-| `probes.livenessProbe.*`          | The same for the liveness probe.                                                                                    | `30`, `10`, `6`     |
 | `prepareLogFolder`                | With the embedded database, create its log folder before the router starts.                                        | `true`              |
 | `mongodbLogRotation.enabled`      | Rotate the embedded database's log by size, see [Storage](#storage).                                               | `false`             |
 | `mongodbLogRotation.maxSizeMB`    | Size at which the log is rotated.                                                                                   | `200`               |
@@ -345,7 +337,6 @@ These are read by the bundled MongoDB chart only.
 | `service.loadBalancerIP`           | LoadBalancer IP. Used by some cloud providers to add external load balancers.                         | `""`          |
 | `service.annotations`              | Annotations of the service, for example for an internal load balancer.                                | `{}`          |
 | `service.extraPorts`               | Further ports on the router container and the service, see [Extra ports](#extra-ports-environment-variables-volumes-and-init-containers). | `[]` |
-| `service.publishNotReadyAddresses` | With probes on, route also to a router that is not ready; empty: only when the pod is replaced with `Recreate`. | `""`          |
 | `ingress.enabled`                  | Create an Ingress for the web management.                                                             | `false`       |
 | `ingress.className`                | Ingress class.                                                                                        | `""`          |
 | `ingress.annotations`              | Annotations of the Ingress.                                                                           | `{}`          |
@@ -463,11 +454,9 @@ When the router is upgraded or its settings change, Kubernetes replaces its pod:
   evicted is replaced at once instead; the new one then fails its start and is restarted until the old
   one has released the database.
 - **With the bundled MongoDB** Kubernetes' default `RollingUpdate` applies: the new pod starts while
-  the old one still runs, so for a while two routers run the same project. Enable the
-  [health probes](#health-probes) there: the old router then keeps serving until the new one is
-  ready. In our measurement on one node no request to the service failed during such an update, and
-  both routers were ready at the same time for 6 to 13 seconds; without probes, requests failed for
-  about 6 seconds.
+  the old one still runs, so for a while two routers run the same project. The chart has no health
+  probes yet, so the old pod is stopped as soon as the new container runs, before the new router
+  answers: in our measurement on one node, requests to the service failed for about 6 seconds.
 - **On clusters with several nodes** it depends on the storage. A volume that is attached to one node
   at a time and can move to another, such as a cloud disk, can stall a rolling update: when the new
   pod is scheduled to another node, it cannot attach the `ReadWriteOnce` volume the old pod still
@@ -479,35 +468,14 @@ updateStrategy:
 ```
 A volume pinned to one node, such as a local volume (for example the `local-path` storage of k3s),
 brings the new pod back to that node every time: rolling updates and `Recreate` then behave as on a
-single node (measured on three nodes: no stall, no failed request with probes). But while that node
-is unavailable the router cannot start anywhere else; its node is a single point of failure.
+single node (measured on three nodes: no stall). But while that node is unavailable the router
+cannot start anywhere else; its node is a single point of failure.
 With `Recreate` the router is unavailable from the stop of the old pod until the new one is ready; on
 our test systems the router answered 9 to 36 seconds after its start, the longest with the database
 migration of a new version, and longer when its image first has to be pulled. Keep that short by
 keeping the image on the nodes (pull policy `IfNotPresent`, an exact image tag, the image pulled ahead
-of a planned upgrade), and see when the router is back with the [health probes](#health-probes).
-Uninterrupted operation needs the router's redundancy mode, see [High availability](#high-availability).
-
-## **Health probes**
-
-`probes.enabled=true` adds a startup, a readiness and a liveness probe to the router container:
-startup and liveness ask `/health/runtime/live`, readiness `/health/runtime/ready`, on the web port and
-without login. Liveness asks only whether the runtime runs, so a runtime that runs but reports not
-ready is not restarted for that. Whether the service still routes to such a pod follows from how the pod is replaced
-(`service.publishNotReadyAddresses`, empty by default): with `Recreate` it does, so the web management
-stays reachable to fix it; with a rolling update it does not, so that clients reach only the ready
-router while its successor starts. A pod that is not ready stays reachable directly with
-`kubectl port-forward pod/<pod name> 8080`. With HTTPS the probes use the HTTPS web port, because port
-8080 only redirects.
-
-The probes stay off by default because only these OPC Router builds have the routes: 5.3.6001 and later
-5.3 builds, 5.4.5005 and later, and every build from 5.5 on. Older builds answer every address with the
-web management's start page, so a probe there always succeeds and detects nothing. The image tag `5.3`
-is such a newer build, but a node that pulled an older `5.3` build keeps running it under the pull
-policy `IfNotPresent`, see [Image versions](#image-versions).
-
-The startup probe allows 10 minutes (`periodSeconds` x `failureThreshold`), enough for the database
-migration on the first start of a new version.
+of a planned upgrade). Uninterrupted operation needs the router's redundancy mode, see
+[High availability](#high-availability).
 
 ## **Security**
 

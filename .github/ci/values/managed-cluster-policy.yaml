@@ -30,8 +30,6 @@ tests:
     limits:
       cpu: 100m
       memory: 64Mi
-probes:
-  enabled: true
 mongodbLogRotation:
   enabled: true
 service:

@@ -155,12 +155,6 @@ service:
   #       protocol: TCP        # defaults to TCP
   #       nodePort: 31420      # NodePort and LoadBalancer only
   extraPorts: []
-  # With probes enabled: whether this service also routes to a router pod that is not ready. Empty
-  # means yes when the pod is replaced with Recreate (the embedded database, or updateStrategy
-  # Recreate), so the web management stays reachable while the runtime is not ready, for example
-  # during a database migration; and no with a rolling update, so that clients reach only the ready
-  # router while its successor starts.
-  publishNotReadyAddresses: ""
 
 claims:
   log:
@@ -229,29 +223,6 @@ ingress:
   #  - secretName: chart-example-tls
   #    hosts:
   #      - chart-example.local
-
-# Health probes of the router container: startup and liveness on /health/runtime/live, readiness on
-# /health/runtime/ready. Off by default, because only newer builds have these routes: 5.3.6001 and
-# later 5.3 builds, 5.4.5005 and later, and every build from 5.5 on. Older builds answer every
-# address with the web management's start page, so a probe there always succeeds and detects
-# nothing. The image tag 5.3 is such a newer build, but a node that pulled an older 5.3 build keeps it
-# under the pull policy IfNotPresent. Only the timings can be changed.
-probes:
-  enabled: false
-  # The router may take periodSeconds x failureThreshold to start, 10 minutes by default. The first
-  # start of a new version can migrate the embedded database, which takes longer than a normal start.
-  startupProbe:
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 60
-  readinessProbe:
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
-  livenessProbe:
-    periodSeconds: 30
-    timeoutSeconds: 10
-    failureThreshold: 6
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
