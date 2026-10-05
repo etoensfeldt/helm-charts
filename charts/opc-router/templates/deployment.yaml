@@ -218,6 +218,27 @@ spec:
           {{- end }}
         {{- end }}
       {{- end }}
+      {{- if and (not .Values.mongodb.deploy) (dig "enabled" false (.Values.mongodbLogRotation | default dict)) }}
+        # The embedded database's log is not rotated by the image and grows until the volume is full.
+        - name: mongodb-log-rotation
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c"]
+          args:
+            - |
+              {{- include "opc-router.mongodbLogRotation" . | nindent 14 }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.helperResources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+          - mountPath: /var/log/opcrouter
+            name: log-volume
+      {{- end }}
       {{- $prepareLogFolder := and (not .Values.mongodb.deploy) (ne .Values.prepareLogFolder false) }}
       {{- if or $prepareLogFolder .Values.project.projectRepo .Values.extraInitContainers }}
       initContainers:

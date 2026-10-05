@@ -276,6 +276,18 @@ helperResources: {}
 # every start fail.
 prepareLogFolder: true
 
+# Rotation of the embedded database's log (/var/log/opcrouter/mongodb/mongod.log), which otherwise
+# grows until the log volume is full and the database stops. Only with the embedded database
+# (mongodb.deploy=false). A container from the router image checks the log every
+# checkIntervalSeconds, rotates it once it is larger than maxSizeMB and keeps the newest keepFiles
+# rotated files, so the log takes at most about (keepFiles + 1) x maxSizeMB. It reaches the database
+# on localhost without login, as the router image runs it by default.
+mongodbLogRotation:
+  enabled: false
+  maxSizeMB: 200
+  keepFiles: 4
+  checkIntervalSeconds: 600
+
 # Further volumes of the router pod and their mounts in the router container, for example an
 # odbc.ini from a ConfigMap for the ODBC plug-in:
 #   extraVolumes:
