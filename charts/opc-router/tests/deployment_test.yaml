@@ -16,4 +16,4 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: opcrouter/service:5.3
+          value: opcrouter/service:5.7

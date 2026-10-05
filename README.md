@@ -31,7 +31,7 @@
   - [**When the MongoDB pod does not start**](#when-the-mongodb-pod-does-not-start)
   - [**Tools that render the chart without the cluster**](#tools-that-render-the-chart-without-the-cluster)
   - [**Rolling back**](#rolling-back)
-  - [**Moving to OPC Router 5.7**](#moving-to-opc-router-57)
+  - [**The move to OPC Router 5.7**](#the-move-to-opc-router-57)
 - [Configuration](#configuration)
   - [**Parameters**](#parameters)
   - [**Requirements of the OPC Router on Kubernetes**](#requirements-of-the-opc-router-on-kubernetes)
@@ -121,8 +121,10 @@ password and replica set key, or delete that volume beforehand.
 
 ## **Upgrading to 1.0.5**
 
-Chart 1.0.5 keeps OPC Router 5.3 as the default image and keeps what an existing installation relies
-on: the names of its volumes, its pod selector and its database. It changes the following:
+Chart 1.0.5 keeps what an existing installation relies on: the names of its volumes, its pod selector
+and its database. It changes the following:
+- **The default image is OPC Router 5.7** (before: 5.3). A release without an `image.tag` of its own
+  moves to 5.7 with this upgrade; read [The move to OPC Router 5.7](#the-move-to-opc-router-57) first.
 - The bundled MongoDB runs `bitnamilegacy/mongodb:4.4.15`. Bitnami has removed its versioned images
   from `docker.io/bitnami`, so earlier chart versions can no longer start a new or rescheduled MongoDB
   pod. MongoDB 4.4.15 opens the data of the 4.4.11 image the earlier versions used.
@@ -192,7 +194,7 @@ your old chart version, and that replaces a running MongoDB pod with the image t
 (see [Rolling back](#rolling-back)).
 
 Releases installed with chart 1.0.0 or 1.0.1 run OPC Router 5.1 or 5.2, unless they set `image.tag`.
-The upgrade to 1.0.5 moves them to 5.3; set `image.tag` to stay on your version.
+The upgrade to 1.0.5 moves them to 5.7 as well; set `image.tag` to stay on your version.
 
 ## **When the MongoDB pod does not start**
 
@@ -235,24 +237,35 @@ Kubernetes replaces the running MongoDB pod with one that cannot start, and the 
 database. If you have to go back, repair it as in
 [When the MongoDB pod does not start](#when-the-mongodb-pod-does-not-start) with `--version <that version>`.
 
-## **Moving to OPC Router 5.7**
+## **The move to OPC Router 5.7**
 
-Chart 1.0.5 still installs OPC Router 5.3 by default. OPC Router 5.7 runs on the bundled MongoDB 4.4.15;
-it supports MongoDB from 4.2 on and recommends 6.0 or later, which a later chart version will provide.
-Before you move to 5.7:
+Chart 1.0.5 installs OPC Router 5.7 by default, so a release without an `image.tag` of its own moves
+from 5.3 to 5.7 with the upgrade to 1.0.5. OPC Router 5.7 runs on the bundled MongoDB 4.4.15; it
+supports MongoDB from 4.2 on and recommends 6.0 or later, which a later chart version will provide.
+Before you upgrade:
 - **Back up first.** Export the project. With the embedded database, the first start of 5.7 migrates
   the database to MongoDB 8, and the 5.3 image cannot open it afterwards.
-- **Project import:** with a project from a git repository, set `project.importMode=overwrite`. The
-  default `clear` stops the web management of OPC Router 5.5, 5.6 and 5.7 from starting (a known
-  defect), see [Loading a project from a git repository](#loading-a-project-from-a-git-repository).
+- **Project import:** with a project from a git repository, set `project.importMode=overwrite` in the
+  same upgrade. The default `clear` stops the web management of OPC Router 5.5, 5.6 and 5.7 from
+  starting (a known defect), and the router restarts over and over (`CrashLoopBackOff`), see
+  [Loading a project from a git repository](#loading-a-project-from-a-git-repository).
 - **With the bundled MongoDB, replace the pod with `Recreate`** for this upgrade, so that 5.3 and 5.7 do
   not run side by side on one database (see [Updates and downtime](#updates-and-downtime)).
-- Pin the exact version, see [Image versions](#image-versions).
+- Pin the exact version, see [Image versions](#image-versions). To stay on 5.3, set `image.tag` to
+  `5.3` or an exact 5.3 build.
 
-Then, with your own values in `my-values.yaml`:
+For example with these lines in your values file `my-values.yaml`:
+```yaml
+image:
+  tag: "5.7.5000.16"
+project:
+  importMode: overwrite      # only with a project from a git repository
+updateStrategy:              # only with the bundled MongoDB
+  type: Recreate
+  rollingUpdate: null
+```
 ```shell
-helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reset-then-reuse-values \
-  -f my-values.yaml --set image.tag=5.7.5000.16
+helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reset-then-reuse-values -f my-values.yaml
 ```
 # Configuration
 
@@ -283,7 +296,7 @@ These are read by the bundled MongoDB chart only.
 | Name                              | Description                                                                                                         | Default value       |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------- |
 | `image.repository`                | OPC Router image: `opcrouter/service` (with `mongodb.deploy=true`) or `opcrouter/runtime` (embedded database). May carry a registry. | `opcrouter/service` |
-| `image.tag`                       | OPC Router image tag; empty means the chart's app version. See [Image versions](#image-versions).                   | `""` (`5.3`)        |
+| `image.tag`                       | OPC Router image tag; empty means the chart's app version. See [Image versions](#image-versions).                   | `""` (`5.7`)        |
 | `image.pullPolicy`                | OPC Router image pull policy.                                                                                       | `IfNotPresent`      |
 | `imagePullSecrets`                | Registry secrets of the router pod.                                                                                 | `[]`                |
 | `podAnnotations`                  | Annotations of the router pod.                                                                                      | `{}`                |
@@ -520,8 +533,8 @@ When using the mongodb container, keep in mind that that the root password and r
 
 ## **Image versions**
 
-The default image tag, `5.3`, moves with every maintenance build of OPC Router 5.3, and so does a tag
-like `5.7`. Under the pull policy `IfNotPresent` a node keeps the build it pulled first, so after a
+The default image tag, `5.7`, moves with every maintenance build of OPC Router 5.7, and so does a tag
+like `5.3`. Under the pull policy `IfNotPresent` a node keeps the build it pulled first, so after a
 reschedule two nodes can run different builds of the same tag. In production pin an exact version,
 for example:
 ```shell
@@ -656,7 +669,7 @@ Please refer to [this sample project](https://github.com/OPC-Router/helm-sample-
 At every start the router imports the project. `project.importMode` decides how:
 - `clear` (default) deletes the configuration first, so the router runs exactly the project. OPC Router
   5.5, 5.6, 5.7 and 5.4 builds after 5.4.6009 stop at this step and the web management never starts
-  (a known defect); use `overwrite` with them.
+  (a known defect); use `overwrite` with them, and so with the chart's default image 5.7.
 - `overwrite` imports the project over the existing configuration: what the project contains replaces
   what is there, everything else stays. It needs OPC Router 5.1.5001 or later.
 

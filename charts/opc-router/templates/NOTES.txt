@@ -34,6 +34,12 @@ WARNING: The web management has no login (webManagement.auth.disable=true). Whoe
 can change the router's configuration. Set webManagement.auth.disable=false and an initial user
 to require a login.
 {{- end }}
+{{- if and .Values.project.projectRepo (eq (.Values.project.importMode | default "clear") "clear") }}
+
+WARNING: The project is imported with project.importMode=clear. OPC Router 5.5 to 5.7, the chart's
+default image among them, stop at this step and the web management does not start. Set
+project.importMode=overwrite for these versions.
+{{- end }}
 {{- else }}
 The chart was successfully installed but the opc-router container won't run:
 You need to accept to the terms and conditions of the EULA (https://www.opc-router.com/terms-of-use-and-eula/) by setting the value I_do_accept_the_EULA to "true".
