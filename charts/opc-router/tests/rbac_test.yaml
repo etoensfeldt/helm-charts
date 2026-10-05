@@ -61,3 +61,19 @@ tests:
       - equal:
           path: spec.template.spec.automountServiceAccountToken
           value: true
+
+  # The role may delete every pod of the namespace; the restart itself must stay with this release.
+  - it: restarts only the pods of its own release after a new commit
+    template: templates/deployment.yaml
+    set:
+      project:
+        projectRepo: https://example.com/project.git
+        autoUpdate:
+          disable: false
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[2].name
+          value: git-ops
+      - matchRegex:
+          path: spec.template.spec.containers[2].args[0]
+          pattern: /namespaces/ns1/pods\?labelSelector=app.kubernetes.io/name=opc-router,app.kubernetes.io/instance=r1"
