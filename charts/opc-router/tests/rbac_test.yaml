@@ -50,6 +50,35 @@ tests:
             kind: Role
             name: r1-opc-router-restart
 
+  - it: grants nothing to the namespace's default account
+    template: templates/rbac.yaml
+    set:
+      serviceAccount:
+        create: false
+      project:
+        projectRepo: https://example.com/project.git
+        autoUpdate:
+          disable: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: binds the role to a named account the chart does not create
+    template: templates/rbac.yaml
+    set:
+      serviceAccount:
+        create: false
+        name: router-account
+      project:
+        projectRepo: https://example.com/project.git
+        autoUpdate:
+          disable: false
+    asserts:
+      - documentIndex: 1
+        equal:
+          path: subjects[0].name
+          value: router-account
+
   - it: mounts the API token when the project auto-update needs it
     template: templates/deployment.yaml
     set:
