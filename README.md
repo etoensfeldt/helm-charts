@@ -105,6 +105,8 @@ helm install my-opcrouter opc-router/opc-router \
   --set I_do_accept_the_EULA=true
 ```
 Keep in mind that the root password and replicaset key can't be changed once set. When leaving the password and/or replicaset key empty when auth is enabled, the chart will autogenerate the missing secret.
+MongoDB reads the replica set key as a key file: it needs at least 6 characters, and only letters,
+digits, `+`, `/` and `=`. Any other character, a `-` for example, keeps MongoDB from starting.
 
 ## **Uninstalling**
 The chart with the name `my-opcrouter` can simply be uninstalled by executing:
@@ -148,7 +150,7 @@ helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reset-then-reu
 ```
 Instead of `--reset-then-reuse-values` you can pass your complete values file with `-f`. Plain
 `--reuse-values` keeps the defaults of your old chart version, among them the MongoDB image that no
-longer exists; with it, add the new image explicitly:
+longer exists, and still reports success; with it, add the new image explicitly:
 ```shell
 helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reuse-values \
   --set mongodb.image.registry=docker.io \
@@ -157,6 +159,9 @@ helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reuse-values \
 ```
 To preview an upgrade, use `--dry-run=server`: the chart reads the existing Deployment and volume
 claims from the cluster, which a client-side dry run cannot.
+
+Releases installed with chart 1.0.0 or 1.0.1 run OPC Router 5.1 or 5.2, unless they set `image.tag`.
+The upgrade to 1.0.5 moves them to 5.3; set `image.tag` to stay on your version.
 
 ## **When the MongoDB pod does not start**
 
@@ -181,19 +186,21 @@ an error and changes nothing.
 
 Tools that render the chart with `helm template` instead of installing it, such as Argo CD, give it no
 access to the cluster. The chart then cannot read what it keeps for an existing release:
-- **The pod selector.** For a Deployment created by chart 1.0.4 or earlier, the rendered selector
-  differs and Kubernetes refuses the change. Delete the Deployment once
-  (`kubectl delete deployment my-opcrouter-opc-router`) and let the tool create it again; the volumes
-  stay, the router restarts.
+- **The pod selector.** For a release installed with chart 1.0.4 or earlier, the rendered selector
+  differs. Kubernetes refuses that change on the Deployment, and applying it to the Service keeps the
+  Service's old labels next to the new ones, so it selects no pod. Delete both once and let the tool
+  create them again (`kubectl delete deployment,service my-opcrouter-opc-router`); the volumes stay,
+  the router restarts.
 - **The size of existing volume claims.** Set `claims.inray.capacity` and `claims.log.capacity` to the
   sizes of your claims (`kubectl get pvc`); the defaults of chart 1.0.4 and earlier were `100M` and
   `1Gi`. Otherwise the tool asks Kubernetes to resize them.
 
 ## **Rolling back**
 
-`helm rollback` to 1.0.4 or earlier restores that version's MongoDB image, which no longer exists.
-If you have to go back, repair it as in [When the MongoDB pod does not start](#when-the-mongodb-pod-does-not-start)
-with `--version <that version>`.
+`helm rollback` to 1.0.4 or earlier restores that version's MongoDB image, which no longer exists:
+Kubernetes replaces the running MongoDB pod with one that cannot start, and the router loses its
+database. If you have to go back, repair it as in
+[When the MongoDB pod does not start](#when-the-mongodb-pod-does-not-start) with `--version <that version>`.
 
 ## **Moving to OPC Router 5.7**
 
@@ -298,7 +305,7 @@ These are read by the bundled MongoDB chart only.
 | `service.loadBalancerIP`           | LoadBalancer IP. Used by some cloud providers to add external load balancers.                         | `""`          |
 | `service.annotations`              | Annotations of the service, for example for an internal load balancer.                                | `{}`          |
 | `service.extraPorts`               | Further ports on the router container and the service, see [Extra ports](#extra-ports-environment-variables-volumes-and-init-containers). | `[]` |
-| `service.publishNotReadyAddresses` | With probes on, keep the web management reachable while the runtime is not ready.                     | `true`        |
+| `service.publishNotReadyAddresses` | With probes on, route also to a router that is not ready; empty: only when the pod is replaced with `Recreate`. | `""`          |
 | `ingress.enabled`                  | Create an Ingress for the web management.                                                             | `false`       |
 | `ingress.className`                | Ingress class.                                                                                        | `""`          |
 | `ingress.annotations`              | Annotations of the Ingress.                                                                           | `{}`          |
@@ -409,7 +416,11 @@ When the router is upgraded or its settings change, Kubernetes replaces its pod:
 - **With the embedded database** the chart uses `Recreate`: the old pod stops before the new one
   starts, because two pods on one database cannot both start.
 - **With the bundled MongoDB** Kubernetes' default `RollingUpdate` applies: the new pod starts while
-  the old one still runs, so for a short time two routers run the same project.
+  the old one still runs, so for a while two routers run the same project. Enable the
+  [health probes](#health-probes) there: the old router then keeps serving until the new one is
+  ready. In our measurement on one node no request to the service failed during such an update, and
+  both routers were ready at the same time for 7 to 11 seconds; without probes, requests failed for
+  about 6 seconds.
 - **On clusters with several nodes** a rolling update stalls in every mode: the new pod lands on
   another node, where it cannot attach the `ReadWriteOnce` volume the old pod still holds. Set
   `Recreate` there:
@@ -420,19 +431,22 @@ updateStrategy:
 ```
 With `Recreate` the router is unavailable from the stop of the old pod until the new one is ready; on
 our test systems the router answered 9 to 36 seconds after its start, the longest with the database
-migration of a new version, and longer when its image first has to be pulled. Keep that short by keeping the image on the nodes (pull policy `IfNotPresent`, an exact
-image tag, the image pulled ahead of a planned upgrade), and see when the router is back with the
-[health probes](#health-probes). Uninterrupted operation needs the router's redundancy mode, see
+migration of a new version, and longer when its image first has to be pulled. Keep that short by
+keeping the image on the nodes (pull policy `IfNotPresent`, an exact image tag, the image pulled ahead
+of a planned upgrade), and see when the router is back with the [health probes](#health-probes). Uninterrupted operation needs the router's redundancy mode, see
 [High availability](#high-availability).
 
 ## **Health probes**
 
 `probes.enabled=true` adds a startup, a readiness and a liveness probe to the router container:
 startup and liveness ask `/health/runtime/live`, readiness `/health/runtime/ready`, on the web port and
-without login. A runtime that runs but is not ready, for example without a valid license, is taken out
-of the service's rotation and not restarted. With probes on, the service still routes to a pod that is
-not ready (`service.publishNotReadyAddresses`), so the web management stays reachable to fix it.
-With HTTPS the probes use the HTTPS web port, because port 8080 only redirects.
+without login. A runtime that runs but is not ready, for example without a valid license, is not
+restarted. Whether the service still routes to such a pod follows from how the pod is replaced
+(`service.publishNotReadyAddresses`, empty by default): with `Recreate` it does, so the web management
+stays reachable to fix it; with a rolling update it does not, so that clients reach only the ready
+router while its successor starts. A pod that is not ready stays reachable directly with
+`kubectl port-forward pod/<pod name> 8080`. With HTTPS the probes use the HTTPS web port, because port
+8080 only redirects.
 
 The probes stay off by default because only these OPC Router builds have the routes: 5.3.6001 and later
 5.3 builds, 5.4.5005 and later, and every build from 5.5 on. Older builds answer every address with the
