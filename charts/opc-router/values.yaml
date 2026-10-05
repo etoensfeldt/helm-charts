@@ -6,7 +6,7 @@ image:
   # Image for the opc router container
   # Has to be either "opcrouter/runtime" for the integrated database
   # or "opcrouter/service", which utilizes the external mongodb
-  # If using an image which uses an integrated mongodb like opcrouter/runtime, 
+  # If using an image which uses an integrated mongodb like opcrouter/runtime,
   # it is required to set 'mongodb.deploy' to 'false' for the integrated mongodb to be used
   repository: opcrouter/service
   pullPolicy: IfNotPresent
@@ -33,7 +33,7 @@ podSecurityContext: {}
 
 # Add environment variables for the opc router here.
 # These will be able to insert themself into the config file for example.
-# Have to be added to the list in the following format: 
+# Have to be added to the list in the following format:
 #  Key: "Value"
 # Example:
 # envVars: [
@@ -107,20 +107,20 @@ webManagement:
     # Requires either existingTlsSecret or cert and key to be set.
     disable: true
     # Set the TLS certificate used for web management https.
-    cert: 
+    cert:
     # Set the TLS key corrosponding to the TLS certificate.
-    key: 
+    key:
     # Set an existing kubernetes.io/tls secret to be used for web management https.
     # Takes priority over cert and key.
-    existingTlsSecret: 
+    existingTlsSecret:
   auth:
     # If false, enables authentification for the web management.
     disable: true
-    initialUser: 
+    initialUser:
       # Sets the name of the initial user.
-      name: 
+      name:
       # Sets the password of the initial user.
-      password: 
+      password:
 
 service:
   enabled: true
@@ -170,14 +170,14 @@ claims:
     keepAfterUninstall: false
     storageVolume:
       # If true, a new persistant volume is created for the log files using the settings provided here.
-      # When false, dynamic provisioning might still create a volume using the setting specified by the storageClass. 
+      # When false, dynamic provisioning might still create a volume using the setting specified by the storageClass.
       createVolume: false
       # Persistant volume retain policy of logging volume.
       reclaimPolicy: Retain
       # Volume type of logging volume.
       volumeType: local
       # Volume type specific settings.
-      volumeTypeOptions: 
+      volumeTypeOptions:
         path: /var/log/opcrouter
       # Mount options of logging volume.
       mountOptions: []
@@ -195,14 +195,14 @@ claims:
     keepAfterUninstall: false
     storageVolume:
       # If true, a new persistant volume is created for the license using the settings provided here.
-      # When false, dynamic provisioning might still create a volume using the setting specified by the storageClass. 
+      # When false, dynamic provisioning might still create a volume using the setting specified by the storageClass.
       createVolume: false
       # Persistant volume retain policy of license volume.
       reclaimPolicy: Retain
       # Volume type of license volume.
       volumeType: local
       # Volume type specific settings.
-      volumeTypeOptions: 
+      volumeTypeOptions:
         path: /data
       # Mount options of license volume.
       mountOptions: []
@@ -338,9 +338,9 @@ I_do_accept_the_EULA: false
 
 project:
   # URL to git repository of the opcrouter4 project. Optional. Can be left empty, resulting in no project being loaded.
-  projectRepo: 
-  # Path to the project .rpe file in the repository. Don't begin with '/'. Optional. Can be left out if no projectRepo is provided. 
-  projectPath: 
+  projectRepo:
+  # Path to the project .rpe file in the repository. Don't begin with '/'. Optional. Can be left out if no projectRepo is provided.
+  projectPath:
   # Path to the projects configuration file. Optional. Not providing it results in no configuration file being loaded.
   configPath:
   # How the project replaces the router's configuration at every start:
@@ -368,7 +368,7 @@ project:
   auth:
     # An existing secret containing the ssh-key under the key 'ssh-privatekey'. Optional.
     # Must be in the same namespace as this application. Takes priority over ssh_key.
-    ssh_secret: 
+    ssh_secret:
     # SSH private key for accessing the git repository. Optional.
     # Line breaks must be represented by '\n'
-    ssh_key: 
+    ssh_key:
