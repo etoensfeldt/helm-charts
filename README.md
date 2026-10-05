@@ -135,9 +135,10 @@ and its database. It changes the following:
   [Updates and downtime](#updates-and-downtime).
 - The router container gets `S6_BEHAVIOUR_IF_STAGE2_FAILS=2`: a container whose startup fails exits,
   and Kubernetes restarts it, instead of running on without answering.
-  With a project on OPC Router 5.5 to 5.7 and the import mode `clear`, the router therefore shows
-  `CrashLoopBackOff` where it used to run without answering, see
-  [Loading a project](#loading-a-project-from-a-git-repository).
+- The router connects to the bundled MongoDB directly (`directConnection=true` in the connection
+  string). The router can set up the MongoDB replica set itself before the MongoDB chart does, and the
+  set's member then carries a host name that resolves only inside the MongoDB pod. OPC Router 5.3
+  connects anyway; 5.7 follows that name and its web management never starts.
 - With the embedded database an init container creates the database's log folder on the log volume;
   a new, empty log volume next to an existing database no longer stops every start. It runs with the
   router's security context and, unless `helperResources` is set, the router's resources, so a policy
@@ -247,7 +248,7 @@ Before you upgrade:
   the database to MongoDB 8, and the 5.3 image cannot open it afterwards.
 - **Project import:** with a project from a git repository, set `project.importMode=overwrite` in the
   same upgrade. The default `clear` stops the web management of OPC Router 5.5, 5.6 and 5.7 from
-  starting (a known defect), and the router restarts over and over (`CrashLoopBackOff`), see
+  starting (a known defect): the pod keeps running, and nothing answers. See
   [Loading a project from a git repository](#loading-a-project-from-a-git-repository).
 - **With the bundled MongoDB, replace the pod with `Recreate`** for this upgrade, so that 5.3 and 5.7 do
   not run side by side on one database (see [Updates and downtime](#updates-and-downtime)).
