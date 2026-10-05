@@ -450,6 +450,11 @@ does not rotate it: on a long-running installation it fills the log volume, and 
 The embedded database is a MongoDB and needs a file system MongoDB supports for its data files; put
 `/data` on a block-storage volume rather than a network file share (see MongoDB's production notes).
 
+On a cluster with several nodes, the volumes must either follow the pod to another node or keep the
+pod on their node. Storage that is local to a node but carries no node affinity (some test
+provisioners, for example minikube's default `standard` class) hands a pod that moves to another node
+an empty `/data`: a new system for licensing, and with the embedded database an empty database.
+
 ## **Updates and downtime**
 
 When the router is upgraded or its settings change, Kubernetes replaces its pod:
@@ -463,14 +468,19 @@ When the router is upgraded or its settings change, Kubernetes replaces its pod:
   ready. In our measurement on one node no request to the service failed during such an update, and
   both routers were ready at the same time for 6 to 13 seconds; without probes, requests failed for
   about 6 seconds.
-- **On clusters with several nodes** a rolling update can stall: when the new pod is scheduled to
-  another node, it cannot attach the `ReadWriteOnce` volume the old pod still holds, and the old pod
-  is not removed before the new one is ready. Set `Recreate` there:
+- **On clusters with several nodes** it depends on the storage. A volume that is attached to one node
+  at a time and can move to another, such as a cloud disk, can stall a rolling update: when the new
+  pod is scheduled to another node, it cannot attach the `ReadWriteOnce` volume the old pod still
+  holds, and the old pod is not removed before the new one is ready. Set `Recreate` there:
 ```yaml
 updateStrategy:
   type: Recreate
   rollingUpdate: null
 ```
+A volume pinned to one node, such as a local volume (for example the `local-path` storage of k3s),
+brings the new pod back to that node every time: rolling updates and `Recreate` then behave as on a
+single node (measured on three nodes: no stall, no failed request with probes). But while that node
+is unavailable the router cannot start anywhere else; its node is a single point of failure.
 With `Recreate` the router is unavailable from the stop of the old pod until the new one is ready; on
 our test systems the router answered 9 to 36 seconds after its start, the longest with the database
 migration of a new version, and longer when its image first has to be pulled. Keep that short by
