@@ -2,6 +2,7 @@ suite: volume sizes
 templates:
   - templates/volumes/claims/inrayclaim.yaml
   - templates/volumes/claims/logclaim.yaml
+  - templates/volumes/inraystorage.yaml
 release:
   name: r1
   namespace: ns1
@@ -30,6 +31,20 @@ tests:
         equal:
           path: spec.resources.requests.storage
           value: 6Gi
+
+  - it: gives a volume the chart creates the same size as its claim
+    template: templates/volumes/inraystorage.yaml
+    set:
+      mongodb:
+        deploy: false
+      claims:
+        inray:
+          storageVolume:
+            createVolume: true
+    asserts:
+      - equal:
+          path: spec.capacity.storage
+          value: 10Gi
 
   - it: uses a configured size
     set:

@@ -78,6 +78,39 @@ tests:
             helm.sh/chart: opc-router-1.0.3
             originForRedundency: redundant-r1-opc-router
 
+  # The Service must follow the kept selector, or it loses its endpoints on the upgrade.
+  - it: selects the pods of an earlier chart version's Deployment in the Service
+    template: templates/services/service.yaml
+    kubernetesProvider:
+      scheme:
+        "apps/v1/Deployment":
+          gvr:
+            group: "apps"
+            version: "v1"
+            resource: "deployments"
+          namespaced: true
+      objects:
+        - kind: Deployment
+          apiVersion: apps/v1
+          metadata:
+            name: r1-opc-router
+            namespace: ns1
+          spec:
+            selector:
+              matchLabels:
+                app.kubernetes.io/instance: r1
+                app.kubernetes.io/name: opc-router
+                helm.sh/chart: opc-router-1.0.3
+                originForRedundency: redundant-r1-opc-router
+    asserts:
+      - equal:
+          path: spec.selector
+          value:
+            app.kubernetes.io/instance: r1
+            app.kubernetes.io/name: opc-router
+            helm.sh/chart: opc-router-1.0.3
+            originForRedundency: redundant-r1-opc-router
+
   - it: never puts a label key twice on the pod, also with the embedded database
     template: templates/deployment.yaml
     set:
