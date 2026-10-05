@@ -24,6 +24,8 @@ serviceAccount:
   annotations: {}
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
+  # The project auto-update's role is bound to the chart's account or to the one named here, never
+  # to the namespace's default account.
   name: ""
 
 podAnnotations: {}
@@ -156,8 +158,8 @@ service:
   # With probes enabled: whether this service also routes to a router pod that is not ready. Empty
   # means yes when the pod is replaced with Recreate (the embedded database, or updateStrategy
   # Recreate), so the web management stays reachable while the runtime is not ready, for example
-  # during a database migration or without a valid license; and no with a rolling update, so that
-  # clients reach only the ready router while its successor starts.
+  # during a database migration; and no with a rolling update, so that clients reach only the ready
+  # router while its successor starts.
   publishNotReadyAddresses: ""
 
 claims:
@@ -266,6 +268,7 @@ resources: {}
 # Resource requests and limits of the helper containers: the project clone, the project
 # auto-update with its kubectl proxy, and the log folder preparation and log rotation of the
 # embedded database. Clusters that reject containers without limits need them set here as well.
+# Left empty, the log folder preparation takes the router's resources.
 helperResources: {}
   # limits:
   #   cpu: 100m
@@ -328,7 +331,8 @@ containerHistoryLimit: 10
 # How the router pod is replaced on an upgrade. Empty means: Recreate when the router embeds its
 # database (mongodb.deploy=false), because two pods on one data volume cannot both start; with a
 # separate MongoDB the Kubernetes default (RollingUpdate) applies. On clusters with several nodes a
-# rolling update also stalls on the ReadWriteOnce data volume, so set Recreate there:
+# rolling update can stall when the new pod lands on another node than the ReadWriteOnce data volume
+# is attached to, so set Recreate there:
 #   updateStrategy:
 #     type: Recreate
 #     rollingUpdate: null

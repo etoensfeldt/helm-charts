@@ -134,14 +134,28 @@ on: the names of its volumes, its pod selector and its database. It changes the 
   [Updates and downtime](#updates-and-downtime).
 - The router container gets `S6_BEHAVIOUR_IF_STAGE2_FAILS=2`: a container whose startup fails exits,
   and Kubernetes restarts it, instead of running on without answering.
+  With a project on OPC Router 5.5 to 5.7 and the import mode `clear`, the router therefore shows
+  `CrashLoopBackOff` where it used to run without answering, see
+  [Loading a project](#loading-a-project-from-a-git-repository).
 - With the embedded database an init container creates the database's log folder on the log volume;
-  a new, empty log volume next to an existing database no longer stops every start.
-- The service account gets only the permissions the project auto-update needs, and only then; the
+  a new, empty log volume next to an existing database no longer stops every start. It runs with the
+  router's security context and, unless `helperResources` is set, the router's resources, so a policy
+  that admitted the router admits it too.
+- The project auto-update's service account gets only the permissions it needs, and only then; the
   router pod mounts no API token otherwise.
+- The helper images of the project clone and auto-update are pinned: `alpine/git:v2.47.2` and
+  `registry.k8s.io/kubectl:v1.33.0` (before: `alpine/git:latest`, `bitnami/kubectl:latest`). A cluster
+  that pulls through a mirror or cannot reach `registry.k8s.io` needs them there, or keeps the old ones
+  with `project.gitImage` and `project.autoUpdate.kubectlImage`.
+- `helm test` asks the runtime's readiness route and fails while the runtime is not ready.
 - A new installation gets volume sizes that fit how the router runs; an existing claim keeps its size.
 - New, all off by default: [health probes](#health-probes), extra ports, environment variables,
   volumes and init containers, resources for every container, a project import mode and a rotation
   of the embedded database's log.
+
+The upgrade replaces the router pod once, because its pod template changes. With the bundled MongoDB,
+a MongoDB pod that still runs another image restarts once on the new one (about 40 seconds on our test
+system).
 
 Upgrade with the new defaults and the values you set yourself:
 ```shell
@@ -150,7 +164,8 @@ helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reset-then-reu
 ```
 Instead of `--reset-then-reuse-values` you can pass your complete values file with `-f`. Plain
 `--reuse-values` keeps the defaults of your old chart version, among them the MongoDB image that no
-longer exists, and still reports success; with it, add the new image explicitly:
+longer exists (and the moving helper image tags), and still reports success; with it, add the new
+image explicitly:
 ```shell
 helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reuse-values \
   --set mongodb.image.registry=docker.io \
@@ -159,6 +174,11 @@ helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reuse-values \
 ```
 To preview an upgrade, use `--dry-run=server`: the chart reads the existing Deployment and volume
 claims from the cluster, which a client-side dry run cannot.
+
+Do not use `--atomic` (Helm 3) or `--rollback-on-failure` (Helm 4) for this upgrade. When it does not
+finish in time, for example because a stuck MongoDB pod has to be deleted by hand, Helm rolls back to
+your old chart version, and that replaces a running MongoDB pod with the image that no longer exists
+(see [Rolling back](#rolling-back)).
 
 Releases installed with chart 1.0.0 or 1.0.1 run OPC Router 5.1 or 5.2, unless they set `image.tag`.
 The upgrade to 1.0.5 moves them to 5.3; set `image.tag` to stay on your version.
@@ -171,10 +191,12 @@ replace a StatefulSet pod that never became ready. After the upgrade, delete it 
 ```shell
 kubectl delete pod my-opcrouter-mongodb-0
 ```
-To repair an installation without changing its chart version, give the installed version and the
-image, then delete the pod as above:
+To repair an installation without changing its chart version, give the chart version of its last
+**deployed** revision and the image, then delete the pod as above. `helm history my-opcrouter` shows
+it; a failed upgrade to 1.0.4 is listed as 1.0.4 although it never deployed, and that version would
+fail on the selector again.
 ```shell
-helm upgrade my-opcrouter opc-router/opc-router --version <installed version> --reuse-values \
+helm upgrade my-opcrouter opc-router/opc-router --version <deployed version> --reuse-values \
   --set mongodb.image.registry=docker.io \
   --set mongodb.image.repository=bitnamilegacy/mongodb \
   --set mongodb.image.tag=4.4.15
@@ -206,17 +228,22 @@ database. If you have to go back, repair it as in
 
 Chart 1.0.5 still installs OPC Router 5.3 by default. OPC Router 5.7 runs on the bundled MongoDB 4.4.15;
 it supports MongoDB from 4.2 on and recommends 6.0 or later, which a later chart version will provide.
-To move to 5.7:
-```shell
-helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reset-then-reuse-values \
-  --set image.tag=5.7
-```
+Before you move to 5.7:
 - **Back up first.** Export the project. With the embedded database, the first start of 5.7 migrates
   the database to MongoDB 8, and the 5.3 image cannot open it afterwards.
 - **Project import:** with a project from a git repository, set `project.importMode=overwrite`. The
   default `clear` stops the web management of OPC Router 5.5, 5.6 and 5.7 from starting (a known
   defect), see [Loading a project from a git repository](#loading-a-project-from-a-git-repository).
-- With [health probes](#health-probes) enabled, the startup budget covers the migration.
+- **With the bundled MongoDB, replace the pod with `Recreate`** for this upgrade, so that 5.3 and 5.7 do
+  not run side by side on one database (see [Updates and downtime](#updates-and-downtime)).
+- Pin the exact version, see [Image versions](#image-versions).
+
+Then, with your own values in `my-values.yaml`:
+```shell
+helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reset-then-reuse-values \
+  -f my-values.yaml --set image.tag=5.7.5000.16
+```
+With [health probes](#health-probes) enabled, the startup budget covers the migration.
 
 # Configuration
 
@@ -400,7 +427,7 @@ An existing claim keeps its size: a bound claim cannot shrink, and growing it ne
 that allows volume expansion. To grow one, set `claims.*.capacity` to the new size. To see what the
 router uses:
 ```shell
-kubectl exec deploy/my-opcrouter-opc-router -c opc-router -- du -sch /data/* /var/log/opcrouter/*
+kubectl exec deploy/my-opcrouter-opc-router -c opc-router -- sh -c 'du -sch /data/* /var/log/opcrouter/*'
 ```
 The embedded database writes its own log, `/var/log/opcrouter/mongodb/mongod.log`, and the image
 does not rotate it: on a long-running installation it fills the log volume, and the database stops.
@@ -413,17 +440,19 @@ The embedded database is a MongoDB and needs a file system MongoDB supports for 
 ## **Updates and downtime**
 
 When the router is upgraded or its settings change, Kubernetes replaces its pod:
-- **With the embedded database** the chart uses `Recreate`: the old pod stops before the new one
-  starts, because two pods on one database cannot both start.
+- **With the embedded database** the chart uses `Recreate`: on a rollout the old pod stops before the
+  new one starts, because two pods on one database cannot both start. A pod that is deleted or
+  evicted is replaced at once instead; the new one then fails its start and is restarted until the old
+  one has released the database.
 - **With the bundled MongoDB** Kubernetes' default `RollingUpdate` applies: the new pod starts while
   the old one still runs, so for a while two routers run the same project. Enable the
   [health probes](#health-probes) there: the old router then keeps serving until the new one is
   ready. In our measurement on one node no request to the service failed during such an update, and
-  both routers were ready at the same time for 7 to 11 seconds; without probes, requests failed for
+  both routers were ready at the same time for 6 to 13 seconds; without probes, requests failed for
   about 6 seconds.
-- **On clusters with several nodes** a rolling update stalls in every mode: the new pod lands on
-  another node, where it cannot attach the `ReadWriteOnce` volume the old pod still holds. Set
-  `Recreate` there:
+- **On clusters with several nodes** a rolling update can stall: when the new pod is scheduled to
+  another node, it cannot attach the `ReadWriteOnce` volume the old pod still holds, and the old pod
+  is not removed before the new one is ready. Set `Recreate` there:
 ```yaml
 updateStrategy:
   type: Recreate
@@ -433,15 +462,15 @@ With `Recreate` the router is unavailable from the stop of the old pod until the
 our test systems the router answered 9 to 36 seconds after its start, the longest with the database
 migration of a new version, and longer when its image first has to be pulled. Keep that short by
 keeping the image on the nodes (pull policy `IfNotPresent`, an exact image tag, the image pulled ahead
-of a planned upgrade), and see when the router is back with the [health probes](#health-probes). Uninterrupted operation needs the router's redundancy mode, see
-[High availability](#high-availability).
+of a planned upgrade), and see when the router is back with the [health probes](#health-probes).
+Uninterrupted operation needs the router's redundancy mode, see [High availability](#high-availability).
 
 ## **Health probes**
 
 `probes.enabled=true` adds a startup, a readiness and a liveness probe to the router container:
 startup and liveness ask `/health/runtime/live`, readiness `/health/runtime/ready`, on the web port and
-without login. A runtime that runs but is not ready, for example without a valid license, is not
-restarted. Whether the service still routes to such a pod follows from how the pod is replaced
+without login. Liveness asks only whether the runtime runs, so a runtime that runs but reports not
+ready is not restarted for that. Whether the service still routes to such a pod follows from how the pod is replaced
 (`service.publishNotReadyAddresses`, empty by default): with `Recreate` it does, so the web management
 stays reachable to fix it; with a rolling update it does not, so that clients reach only the ready
 router while its successor starts. A pod that is not ready stays reachable directly with
@@ -474,7 +503,11 @@ extraEnv:
 - **The bundled MongoDB has no login by default** (`mongodb.auth.enabled=false`); see the warning
   below before you enable it.
 - **The service account** gets permissions and an API token only with the project auto-update: a Role
-  that may list and delete the pods of the namespace, so a new project version restarts the router.
+  that may list and delete the pods of the namespace, so a new project version restarts the router; the
+  restart itself selects only this release's pods. The role is bound to the chart's own account or to
+  the one named in `serviceAccount.name`, never to the namespace's `default` account, which other pods
+  share. With `serviceAccount.create=false` and no name the auto-update therefore cannot restart the
+  router.
 - **The security context** that grants only what the router needs:
 ```yaml
 securityContext:
