@@ -10,8 +10,10 @@ spec:
   {{- if .Values.updateStrategy }}
   strategy:
     {{- toYaml .Values.updateStrategy | nindent 4 }}
-  {{- else if not .Values.mongodb.deploy }}
-  # Two routers on one embedded database cannot both start, so the old pod goes first.
+  {{- else }}
+  # The router mounts two ReadWriteOnce volumes in every mode. A rolling update starts the new pod
+  # next to the old one: on another node it cannot attach them while the old pod holds them, and
+  # with the embedded database it cannot open the database. So the old pod goes first.
   strategy:
     type: Recreate
     rollingUpdate: null

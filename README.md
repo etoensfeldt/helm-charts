@@ -130,9 +130,10 @@ and its database. It changes the following:
   pod. MongoDB 4.4.15 opens the data of the 4.4.11 image the earlier versions used.
 - An existing release keeps its pod selector. Versions up to 1.0.4 put the chart version into it, so
   every upgrade between them failed with `spec.selector: Invalid value … field is immutable`.
-- With the embedded database (`opcrouter/runtime` and `mongodb.deploy=false`) the pod is replaced
-  with the strategy `Recreate`, because two pods on one database cannot both start. See
-  [Updates and downtime](#updates-and-downtime).
+- The router pod is replaced with the strategy `Recreate` in every mode (before: only Kubernetes'
+  default `RollingUpdate`). A rolling update starts the new pod next to the old one; on a cluster with
+  several nodes it can stall for good on the router's `ReadWriteOnce` volumes, and with the embedded
+  database the new pod cannot start at all. See [Updates and downtime](#updates-and-downtime).
 - The router container gets `S6_BEHAVIOUR_IF_STAGE2_FAILS=2`: a container whose startup fails exits,
   and Kubernetes restarts it, instead of running on without answering.
 - The router connects to the bundled MongoDB directly (`directConnection=true` in the connection
@@ -250,8 +251,8 @@ Before you upgrade:
   same upgrade. The default `clear` stops the web management of OPC Router 5.5, 5.6 and 5.7 from
   starting (a known defect): the pod keeps running, and nothing answers. See
   [Loading a project from a git repository](#loading-a-project-from-a-git-repository).
-- **With the bundled MongoDB, replace the pod with `Recreate`** for this upgrade, so that 5.3 and 5.7 do
-  not run side by side on one database (see [Updates and downtime](#updates-and-downtime)).
+- **If you set `updateStrategy` to `RollingUpdate`, remove it for this upgrade**, so that 5.3 and 5.7 do
+  not run side by side on one database; the chart's default `Recreate` avoids that.
 - Pin the exact version, see [Image versions](#image-versions). To stay on 5.3, set `image.tag` to
   `5.3` or an exact 5.3 build.
 
@@ -261,9 +262,6 @@ image:
   tag: "5.7.5000.16"
 project:
   importMode: overwrite      # only with a project from a git repository
-updateStrategy:              # only with the bundled MongoDB
-  type: Recreate
-  rollingUpdate: null
 ```
 ```shell
 helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reset-then-reuse-values -f my-values.yaml
@@ -308,7 +306,7 @@ These are read by the bundled MongoDB chart only.
 | `nodeSelector`                    | Node selector of the router pod.                                                                                    | `{}`                |
 | `tolerations`                     | Tolerations of the router pod.                                                                                      | `[]`                |
 | `affinity`                        | Affinity of the router pod.                                                                                         | `{}`                |
-| `updateStrategy`                  | How the router pod is replaced; empty: `Recreate` with the embedded database, else RollingUpdate. See [Updates and downtime](#updates-and-downtime). | `{}` |
+| `updateStrategy`                  | How the router pod is replaced; empty: `Recreate`. See [Updates and downtime](#updates-and-downtime). | `{}` |
 | `envVars`                         | Environment variables of the router container as `Name: "Value"` entries.                                         | `[]`                |
 | `extraEnv`                        | Further environment variables as Kubernetes EnvVar entries, `valueFrom` included.                                  | `[]`                |
 | `extraVolumes`                    | Further volumes of the router pod.                                                                                  | `[]`                |
@@ -462,28 +460,30 @@ an empty `/data`: a new system for licensing, and with the embedded database an 
 
 ## **Updates and downtime**
 
-When the router is upgraded or its settings change, Kubernetes replaces its pod:
-- **With the embedded database** the chart uses `Recreate`: on a rollout the old pod stops before the
-  new one starts, because two pods on one database cannot both start. A pod that is deleted or
-  evicted is replaced at once instead; the new one then fails its start and is restarted until the old
-  one has released the database.
-- **With the bundled MongoDB** Kubernetes' default `RollingUpdate` applies: the new pod starts while
-  the old one still runs, so for a while two routers run the same project. The chart has no health
-  probes yet, so the old pod is stopped as soon as the new container runs, before the new router
-  answers: in our measurement on one node, requests to the service failed for about 6 seconds.
-- **On clusters with several nodes** it depends on the storage. A volume that is attached to one node
-  at a time and can move to another, such as a cloud disk, can stall a rolling update: when the new
-  pod is scheduled to another node, it cannot attach the `ReadWriteOnce` volume the old pod still
-  holds, and the old pod is not removed before the new one is ready. Set `Recreate` there:
+When the router is upgraded or its settings change, Kubernetes replaces its pod. The chart uses
+`Recreate` in every mode: on a rollout the old pod stops before the new one starts. The router
+mounts its two volumes as `ReadWriteOnce`, and a rolling update would start the new pod first:
+- **On a cluster with several nodes**, a volume that is attached to one node at a time, such as a
+  cloud disk (Azure Disk, EBS), cannot follow the new pod to another node while the old pod holds
+  it. The new pod waits, the old pod is not removed before the new one is ready, and the rollout
+  stalls for good.
+- **With the embedded database** the new pod cannot open the database the old one still uses.
+
+A pod that is deleted or evicted is replaced at once, `Recreate` or not; the new one then waits or
+restarts until the old one has released its volumes and database.
+
+A rolling update is safe only with a separate MongoDB, and only on a single node, with volumes
+pinned to one node (such as local volumes, for example the `local-path` storage of k3s; measured on
+three nodes: the new pod returned to that node, no stall), or with volumes that are not attached to
+nodes. There it shortens the interruption (in our measurement on one node, requests failed for about
+6 seconds), at the price of two routers running the same project for a short time:
 ```yaml
 updateStrategy:
-  type: Recreate
-  rollingUpdate: null
+  type: RollingUpdate
 ```
-A volume pinned to one node, such as a local volume (for example the `local-path` storage of k3s),
-brings the new pod back to that node every time: rolling updates and `Recreate` then behave as on a
-single node (measured on three nodes: no stall). But while that node is unavailable the router
-cannot start anywhere else; its node is a single point of failure.
+With volumes pinned to one node, the router cannot start anywhere else while that node is
+unavailable; its node is a single point of failure.
+
 With `Recreate` the router is unavailable from the stop of the old pod until the new one is ready; on
 our test systems the router answered 9 to 36 seconds after its start, the longest with the database
 migration of a new version, and longer when its image first has to be pulled. Keep that short by
@@ -603,9 +603,6 @@ service:
       port: 49420
 nodeSelector:
   agentpool: user
-updateStrategy:
-  type: Recreate
-  rollingUpdate: null
 claims:
   inray:
     capacity: 10Gi

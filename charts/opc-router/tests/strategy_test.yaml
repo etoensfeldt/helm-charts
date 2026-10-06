@@ -2,10 +2,26 @@ suite: update strategy and startup failure behaviour
 templates:
   - templates/deployment.yaml
 tests:
-  - it: leaves the strategy to Kubernetes when MongoDB runs separately
+  # The router's ReadWriteOnce volumes stall a rolling update on another node in every mode.
+  - it: replaces the pod with Recreate with a separate MongoDB too
     asserts:
-      - notExists:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - exists:
+          path: spec.strategy.rollingUpdate
+      - isNullOrEmpty:
+          path: spec.strategy.rollingUpdate
+
+  - it: uses a rolling update only when asked for
+    set:
+      updateStrategy:
+        type: RollingUpdate
+    asserts:
+      - equal:
           path: spec.strategy
+          value:
+            type: RollingUpdate
 
   - it: replaces the pod with Recreate when the router embeds its database
     set:

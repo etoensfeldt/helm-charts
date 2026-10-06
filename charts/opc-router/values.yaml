@@ -299,14 +299,14 @@ affinity: {}
 # The size of the history of deployments kept for potential rollbacks.
 containerHistoryLimit: 10
 
-# How the router pod is replaced on an upgrade. Empty means: Recreate when the router embeds its
-# database (mongodb.deploy=false), because two pods on one data volume cannot both start; with a
-# separate MongoDB the Kubernetes default (RollingUpdate) applies. On clusters with several nodes a
-# rolling update can stall when the new pod lands on another node than the ReadWriteOnce data volume
-# is attached to, so set Recreate there:
+# How the router pod is replaced on an upgrade. Empty means Recreate in every mode: the old pod
+# stops before the new one starts. The router's two volumes are ReadWriteOnce, and a rolling update
+# starts the new pod first: on another node it waits for volumes the old pod still holds (cloud disks
+# such as Azure Disk or EBS), and the rollout stalls. A rolling update is safe only with a separate
+# MongoDB and on a single node, with volumes pinned to one node, or with volumes that are not
+# attached to nodes; there it shortens the interruption:
 #   updateStrategy:
-#     type: Recreate
-#     rollingUpdate: null
+#     type: RollingUpdate
 updateStrategy: {}
 
 # Switching this to to true represents accepting the terms and conditions of the end user license agreement.
