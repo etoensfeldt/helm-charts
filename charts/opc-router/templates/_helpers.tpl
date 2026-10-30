@@ -70,6 +70,35 @@ app.kubernetes.io/component: router
 {{- end }}
 
 {{/*
+Stops an upgrade that would switch a Deployment applied server-side (Helm 4) from Kubernetes' default
+rolling update to Recreate. The API added the rollingUpdate settings when it created the Deployment,
+so no field manager owns them, and a server-side apply removes only fields its own manager owns: the
+Deployment would be rejected after the resources applied before it were already updated.
+*/}}
+{{- define "opc-router.strategySwitchGuard" -}}
+{{- $name := include "opc-router.fullname" . -}}
+{{- $namespace := .Release.Namespace -}}
+{{- $existing := lookup "apps/v1" "Deployment" $namespace $name -}}
+{{- if dig "spec" "strategy" "rollingUpdate" nil $existing -}}
+{{- $applied := false -}}
+{{- $owned := false -}}
+{{- range (dig "metadata" "managedFields" list $existing) -}}
+{{- if eq .operation "Apply" -}}
+{{- $applied = true -}}
+{{- if hasKey (dig "fieldsV1" "f:spec" "f:strategy" dict .) "f:rollingUpdate" -}}
+{{- $owned = true -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if and $applied (not $owned) -}}
+{{- fail (printf `the Deployment %s still has the rolling update settings Kubernetes gave it at installation, and it is managed by server-side apply (Helm 4). This chart replaces the router pod with the strategy Recreate, and a server-side apply cannot remove those settings, so the upgrade would stop half-way. Nothing has been changed. Switch the Deployment to Recreate first, which does not restart the router:
+  kubectl patch deployment %s -n %s --type merge -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
+then repeat the upgrade. To keep a rolling update instead, set updateStrategy.type=RollingUpdate.` $name $name $namespace) -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Labels of the router pod: the selector labels, completed by the common labels. Where both name the
 same key, the selector's value wins, so a kept selector still matches its pods.
 */}}

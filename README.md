@@ -133,7 +133,8 @@ and its database. It changes the following:
 - The router pod is replaced with the strategy `Recreate` in every mode (before: only Kubernetes'
   default `RollingUpdate`). A rolling update starts the new pod next to the old one; on a cluster with
   several nodes it can stall for good on the router's `ReadWriteOnce` volumes, and with the embedded
-  database the new pod cannot start at all. See [Updates and downtime](#updates-and-downtime).
+  database the new pod cannot start at all. See [Updates and downtime](#updates-and-downtime). A
+  release installed with Helm 4 is switched by one command first, see below.
 - The router container gets `S6_BEHAVIOUR_IF_STAGE2_FAILS=2`: a container whose startup fails exits,
   and Kubernetes restarts it, instead of running on without answering.
 - The router connects to the bundled MongoDB directly (`directConnection=true` in the connection
@@ -186,6 +187,19 @@ helm upgrade my-opcrouter opc-router/opc-router --version 1.0.5 --reset-then-reu
   --set mongodb.auth.rootPassword=$MONGODB_ROOT_PASSWORD \
   --set mongodb.auth.replicaSetKey=$MONGODB_REPLICA_SET_KEY
 ```
+
+**A release installed with Helm 4** was applied server-side, and because chart versions up to 1.0.4
+set no update strategy, Kubernetes filled in a rolling update when it created the router's
+Deployment. A server-side apply cannot remove those settings, so 1.0.5 cannot switch the Deployment
+to `Recreate` (see [Updates and downtime](#updates-and-downtime)) on its own. The chart stops such an
+upgrade before it changes anything, with a message that begins `the Deployment … still has the
+rolling update settings Kubernetes gave it at installation`. Switch the Deployment once with the
+command the message prints, which does not restart the router, and repeat the upgrade:
+```shell
+kubectl patch deployment my-opcrouter-opc-router --type merge \
+  -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
+```
+Releases installed with Helm 3 need no such step, also when Helm 4 upgrades them.
 
 To preview an upgrade, use `--dry-run=server`: the chart reads the existing Deployment and volume
 claims from the cluster, which a client-side dry run cannot.
