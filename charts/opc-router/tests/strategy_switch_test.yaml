@@ -38,6 +38,65 @@ tests:
       - failedTemplate:
           errorPattern: "kubectl patch deployment r1-opc-router -n ns1 --type merge"
 
+  - it: refuses an explicit Recreate on a Deployment applied server-side with the default rolling update
+    set:
+      updateStrategy:
+        type: Recreate
+    kubernetesProvider:
+      scheme: *scheme
+      objects:
+        - kind: Deployment
+          apiVersion: apps/v1
+          metadata:
+            name: r1-opc-router
+            namespace: ns1
+            managedFields:
+              - manager: helm
+                operation: Apply
+                fieldsV1:
+                  "f:spec":
+                    "f:replicas": {}
+          spec:
+            strategy:
+              type: RollingUpdate
+              rollingUpdate:
+                maxSurge: 25%
+                maxUnavailable: 25%
+    asserts:
+      - failedTemplate:
+          errorPattern: "kubectl patch deployment r1-opc-router -n ns1 --type merge"
+
+  # Client-side, a Recreate without rollingUpdate: null switches the Deployment too (measured).
+  - it: switches a Deployment applied client-side (Helm 3) to an explicit Recreate
+    set:
+      updateStrategy:
+        type: Recreate
+    kubernetesProvider:
+      scheme: *scheme
+      objects:
+        - kind: Deployment
+          apiVersion: apps/v1
+          metadata:
+            name: r1-opc-router
+            namespace: ns1
+            managedFields:
+              - manager: helm
+                operation: Update
+                fieldsV1:
+                  "f:spec":
+                    "f:replicas": {}
+          spec:
+            strategy:
+              type: RollingUpdate
+              rollingUpdate:
+                maxSurge: 25%
+                maxUnavailable: 25%
+    asserts:
+      - equal:
+          path: spec.strategy
+          value:
+            type: Recreate
+
   - it: switches a Deployment applied client-side (Helm 3) from the default rolling update
     kubernetesProvider:
       scheme: *scheme

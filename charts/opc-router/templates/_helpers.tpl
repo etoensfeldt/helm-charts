@@ -91,7 +91,7 @@ Deployment would be rejected after the resources applied before it were already 
 {{- end -}}
 {{- end -}}
 {{- if and $applied (not $owned) -}}
-{{- fail (printf `the Deployment %s still has the rolling update settings Kubernetes gave it at installation, and it is managed by server-side apply (Helm 4). This chart replaces the router pod with the strategy Recreate, and a server-side apply cannot remove those settings, so the upgrade would stop half-way. Nothing has been changed. Switch the Deployment to Recreate first, which does not restart the router:
+{{- fail (printf `the Deployment %s still has the rolling update settings Kubernetes gave it at installation, and it is managed by server-side apply (Helm 4). This upgrade replaces the router pod with the strategy Recreate, and a server-side apply cannot remove those settings, so the upgrade would stop half-way. Nothing has been changed. Switch the Deployment to Recreate first, which does not restart the router:
   kubectl patch deployment %s -n %s --type merge -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
 then repeat the upgrade. To keep a rolling update instead, set updateStrategy.type=RollingUpdate.` $name $name $namespace) -}}
 {{- end -}}

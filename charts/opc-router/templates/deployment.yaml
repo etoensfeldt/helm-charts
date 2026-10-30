@@ -7,11 +7,13 @@ metadata:
 spec:
   revisionHistoryLimit: {{ .Values.containerHistoryLimit }}
   replicas: 1
+  {{- if or (not .Values.updateStrategy) (eq (dig "type" "" (.Values.updateStrategy | default dict)) "Recreate") }}
+  {{- include "opc-router.strategySwitchGuard" . }}
+  {{- end }}
   {{- if .Values.updateStrategy }}
   strategy:
     {{- toYaml .Values.updateStrategy | nindent 4 }}
   {{- else }}
-  {{- include "opc-router.strategySwitchGuard" . }}
   # The router mounts two ReadWriteOnce volumes in every mode. A rolling update starts the new pod
   # next to the old one: on another node it cannot attach them while the old pod holds them, and
   # with the embedded database it cannot open the database. So the old pod goes first.
